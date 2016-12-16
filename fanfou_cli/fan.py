@@ -6,7 +6,7 @@ import json
 import os
 import sys
 
-import config as cfg
+from fanfou_cli import config as cfg
 from requests_oauthlib import OAuth1Session
 from requests_oauthlib.oauth1_session import TokenMissing
 
@@ -134,7 +134,7 @@ def cli():
         if b:
             print('发布成功:', r['text'])
         else:
-            print('发布失败', r['error'])
+            print('发布失败:', r['error'])
 
 
 if __name__ == '__main__':
