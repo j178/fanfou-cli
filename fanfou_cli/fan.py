@@ -121,21 +121,3 @@ class Fan:
         if r.status_code == 200:
             return True, r.json()
         return False, r.json()
-
-
-def cli():
-    fan = Fan()
-    if '-b' in sys.argv:
-        fan.backup()
-
-    else:
-        status = ' '.join(sys.argv[1:])
-        b, r = fan.update_status(status)
-        if b:
-            print('发布成功:', r['text'])
-        else:
-            print('发布失败:', r['error'])
-
-
-if __name__ == '__main__':
-    cli()

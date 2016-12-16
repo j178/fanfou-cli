@@ -8,7 +8,7 @@ setup(name='fanfou-cli',
       packages=['fanfou_cli'],
       install_requires=['requests-oauthlib'],
       keywords=['internet', 'oauth', 'sns'],
-      description=open('README.rst').read(),
+      description=open('README.md').read(),
       author='John Jiang',
       author_email='nigelchiang@outlook.com',
       license='MIT',
@@ -18,6 +18,6 @@ setup(name='fanfou-cli',
 
       entry_points={
           'console_scripts': [
-              'fan = fanfou_cli.fan:cli'
+              'fan = fanfou_cli.cli:main'
           ]
       })
