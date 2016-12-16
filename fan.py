@@ -28,6 +28,7 @@ class Fan:
                 raise TokenMissing('Token not found', cfg.CACHE_FILE)
         except TokenMissing:
             self._oauth1()
+            self.save_cache()
 
     @property
     def since_id(self):
@@ -99,7 +100,7 @@ class Fan:
             if not j:
                 break
             if first:
-                save_since_id(j[0].get('id', ''))
+                self.since_id = j[0].get('id', '')
                 first = False
 
             for status in j:
