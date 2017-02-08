@@ -5,4 +5,4 @@ from fanfou.new.fanfoucli.fan import Fan
 
 
 fan = Fan()
-fan.view()
+fan.random_view()

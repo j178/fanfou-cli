@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument('-p', '--privacy', metavar='0/1', type=int, help='需要我批准才能查看我的消息')
     parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
     parser.add_argument('-v', '--view', action='store_true', help='浏览模式')
+    parser.add_argument('-d', '--random', action='store_true', help='随便看看')
     return parser.parse_known_args()
 
 
@@ -36,6 +37,8 @@ def main():
         print(fan.me())
     elif args.view:
         fan.view()
+    elif args.random:
+        fan.random_view()
     else:
         if args.new:
             status = ' '.join(args.new)

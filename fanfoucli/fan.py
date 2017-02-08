@@ -12,7 +12,7 @@ from requests_oauthlib import OAuth1Session
 
 from . import config as cfg
 
-level = logging.DEBUG if os.getenv('DEBUG') else logging.WARN
+level = logging.DEBUG
 logging.basicConfig(level=level,
                     format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
@@ -71,6 +71,11 @@ class API:
     @api_method('statuses', 'user_timeline')
     def user_timeline(self, url, **params):
         """获取某个用户已发送的状态"""
+        return self.session.get(url, params=params)
+
+    @api_method('statuses', 'public_timeline')
+    def public_timeline(self, url, **params):
+        """显示20条随便看看的消息(未设置隐私用户的消息)"""
         return self.session.get(url, params=params)
 
     @api_method('photo', 'upload')
@@ -160,7 +165,7 @@ class Fan:
             self._cache['me'] = me
             self.save_cache()
 
-        return me
+        return json.dumps(me, ensure_ascii=False, indent=2, sort_keys=True)
 
     def update_status(self, status):
         s, r = self.api.statuses_update(status=status)
@@ -187,6 +192,20 @@ class Fan:
             error = info
         print('撤回失败:', error)
 
+    @staticmethod
+    def display_statuses(statuses):
+        text = []
+        for i, status in enumerate(statuses, start=1):
+            photo = '[图片]' if 'photo' in status else ''
+            truncated = '$' if status['truncated'] else ''
+
+            text.append('[{:2}] [{}]: {} {} {}'.format(i,
+                                                       status['user']['name'],
+                                                       status['text'],
+                                                       photo,
+                                                       truncated))
+        print('\n'.join(text))
+
     def view(self):
         """浏览模式"""
         max_id = None
@@ -196,20 +215,18 @@ class Fan:
                 print(s)
                 break
             max_id = timeline[-1]['id']
+            self.display_statuses(timeline)
 
-            text = []
-            for i, status in enumerate(timeline, start=1):
-                photo = '[图片]' if 'photo' in status else ''
-                truncated = '$' if status['truncated'] else ''
-                text.append('[{:2}] [{}]: {} {} {}'.format(i,
-                                                           status['user']['name'],
-                                                           status['text'],
-                                                           photo,
-                                                           truncated))
-            print('\n'.join(text))
             key = input('Enter <j> to next page, any other key to exit >').strip()
             if key != 'j':
                 break
+
+    def random_view(self):
+        s, timeline = self.api.public_timeline(count=20)
+        if s:
+            self.display_statuses(timeline)
+        else:
+            print(timeline)
 
     def save_all_statuses(self, since_id=None, max_id=None, count=60, page=None, mode='lite'):
         """
