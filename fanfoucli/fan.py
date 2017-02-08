@@ -20,9 +20,9 @@ logging.basicConfig(level=level,
 
 def api_method(category, action):
     def decorator(f):
-        def wrapper(self, **kwargs):
+        def wrapper(self, *args, **kwargs):
             url = self.api_url.format(category, action)
-            result = f(self, url, **kwargs)
+            result = f(self, url, *args, **kwargs)
             j = result.json()
             if result.status_code == 200:
                 return True, j
@@ -66,13 +66,6 @@ class API:
     @api_method('statuses', 'home_timeline')
     def home_timeline(self, url, **params):
         """获取指定用户的时间线(用户及其关注好友的状态)，该用户为当前登录用户或者未设置隐私"""
-        params = {
-            # 'format'  : 'html',
-            # 'since_id': '',
-            'mode' : 'lite',
-            'count': 60,
-            'id'   : '~J34hYHIZfhs'
-        }
         return self.session.get(url, params=params)
 
     @api_method('statuses', 'user_timeline')
@@ -169,6 +162,17 @@ class Fan:
 
         return me
 
+    def update_status(self, status):
+        s, r = self.api.statuses_update(status=status)
+        if s:
+            self._cache['me'] = r['user']
+            del r['user']
+            self._cache['my_latest_status'] = r
+            self.save_cache()
+            print('发布成功: ', r['text'])
+        else:
+            print('发布失败: ', r)
+
     def revert(self):
         s, latest = self.api.user_timeline(count=1)
         error = latest
@@ -183,16 +187,29 @@ class Fan:
             error = info
         print('撤回失败:', error)
 
-    def update_status(self, status):
-        s, r = self.api.statuses_update(status=status)
-        if s:
-            self._cache['me'] = r['user']
-            del r['user']
-            self._cache['my_latest_status'] = r
-            self.save_cache()
-            print('发布成功: ', r['text'])
-        else:
-            print('发布失败: ', r)
+    def view(self):
+        """浏览模式"""
+        max_id = None
+        while True:
+            s, timeline = self.api.home_timeline(count=10, max_id=max_id)
+            if not s:
+                print(s)
+                break
+            max_id = timeline[-1]['id']
+
+            text = []
+            for i, status in enumerate(timeline, start=1):
+                photo = '[图片]' if 'photo' in status else ''
+                truncated = '$' if status['truncated'] else ''
+                text.append('[{:2}] [{}]: {} {} {}'.format(i,
+                                                           status['user']['name'],
+                                                           status['text'],
+                                                           photo,
+                                                           truncated))
+            print('\n'.join(text))
+            key = input('Enter <j> to next page, any other key to exit >').strip()
+            if key != 'j':
+                break
 
     def save_all_statuses(self, since_id=None, max_id=None, count=60, page=None, mode='lite'):
         """
