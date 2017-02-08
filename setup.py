@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 from setuptools import setup
+
 version = '0.1'
 
 setup(name='fanfou-cli',
       version=version,
-      packages=['fanfou_cli'],
+      packages=['fanfoucli'],
       install_requires=['requests-oauthlib'],
       keywords=['internet', 'oauth', 'sns'],
       description=open('README.md').read(),
@@ -18,6 +19,6 @@ setup(name='fanfou-cli',
 
       entry_points={
           'console_scripts': [
-              'fan = fanfou_cli.cli:main'
+              'fan = fanfoucli.cli:main'
           ]
       })
