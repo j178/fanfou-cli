@@ -1,5 +1,5 @@
 import argparse
-
+import logging
 from .fan import Fan
 
 
@@ -10,11 +10,12 @@ def parse_args():
     # 或者一个nagrs=*的positional，但是也可以不提供
     parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
     parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
-    parser.add_argument('-b', '--save_all_statuses', action='store_true', help='备份所有状态')
-    parser.add_argument('-p', '--privacy', metavar='0/1', type=int, help='需要我批准才能查看我的消息')
+    parser.add_argument('-s', '--save_all_statuses', action='store_true', help='备份所有状态')
+    parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息')
     parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
-    parser.add_argument('-v', '--view', action='store_true', help='浏览模式')
+    parser.add_argument('-b', '--browser', action='store_true', help='浏览模式')
     parser.add_argument('-d', '--random', action='store_true', help='随便看看')
+    parser.add_argument('-v', '--verbose', action='count', default=0)
     return parser.parse_known_args()
 
 
@@ -26,6 +27,11 @@ def open_fanfou():
 def main():
     fan = Fan()
     args, unknown = parse_args()
+
+    level = logging.DEBUG if args.verbose >= 2 else logging.INFO
+    logging.basicConfig(level=level,
+                        format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
 
     if args.save_all_statuses:
         fan.save_all_statuses()

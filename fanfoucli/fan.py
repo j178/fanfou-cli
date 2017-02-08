@@ -12,11 +12,6 @@ from requests_oauthlib import OAuth1Session
 
 from . import config as cfg
 
-level = logging.WARN
-logging.basicConfig(level=level,
-                    format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
 
 def api(category, action):
     def decorator(f):
@@ -249,7 +244,7 @@ class Fan:
         else:
             print(timeline)
 
-    def save_all_statuses(self, since_id=None, max_id=None, count=60, page=None, mode='lite'):
+    def save_all_statuses(self, since_id=None, max_id=None, count=60, mode='lite'):
         """
         定时备份饭否消息
 
@@ -260,44 +255,57 @@ class Fan:
         :param str mode: default|lite 没有区别
         """
 
-        def save_timeline(statuses):
+        def save(fp, statuses):
+
             # open的 mode 的说明: http://stackoverflow.com/questions/1466000/python-open-built-in-function-difference
             # -between
             # -modes-a-a-w-w-and-r
-            with open('timeline.json', 'r+') as fp:
-                # r.text 本来就是字符串类型, 如果使用json.dump的话, 就会保存为json中的字符串形式, 非法的字符都会被转义
-                # json.dump(r.text, fp)
-                old = json.load(fp)  # 这里的开销要怎么避免
-                statuses.extend(old)
-                # 回到文件开头
-                fp.seek(0)
-                # 开始覆盖地写入
-                json.dump(statuses, fp)
-                # Resize the stream to the given size in bytes (or the current position if size is not specified).
-                fp.truncate()
+
+            # r.text 本来就是字符串类型, 如果使用json.dump的话, 就会保存为json中的字符串形式, 非法的字符都会被转义
+            # json.dump(r.text, fp)
+            # old = json.load(fp)  # 这里的开销要怎么避免
+            # statuses.extend(old)
+            # # 回到文件开头
+            # fp.seek(0)
+            # # 开始覆盖地写入
+            # json.dump(statuses, fp, ensure_ascii=False, indent=2)
+            # # Resize the stream to the given size in bytes (or the current position if size is not specified).
+            # fp.truncate()
+
+            text = json.dumps(statuses, ensure_ascii=False, indent=2, sort_keys=True)
+            start = text.index('[') + 1
+            text[text.rindex(']')] = ','
+            fp.write(text[start:])
 
         since_id = since_id or self.since_id
-        params = dict(since_id=since_id, max_id=max_id, count=count, page=page, mode=mode)
 
-        statuses = []
         first = True
+        fp = open('timeline.json', 'a+')
 
         while True:
-            r = self.api.user_timeline(params=params)
-            j = r.json()
-            # 返回空数组时退出
-            if not j:
+            s, statuses = self.api.user_timeline(since_id=since_id,
+                                                 max_id=max_id,
+                                                 count=count,
+                                                 mode=mode)
+            if not s:
+                logging.error(statuses)
                 break
+            logging.info('Got %s', len(statuses))
+
+            # 返回空数组时退出
+            if not statuses: break
             if first:
-                self.since_id = j[0].get('id', '')
+                self.since_id = statuses[0]['id']
+                self.save_cache()
                 first = False
 
-            for status in j:
+            for status in statuses:
                 del status['user']
+                if 'repost_status' in status:
+                    del status['repost_status']['user']
+
             # 每次获取最新的状态, 找到其中最老的id作为下一次获取时的max_id
-            max_id = j[-1].get('id')
-            statuses.extend(j)
+            max_id = statuses[-1]['id']
 
-            params['max_id'] = max_id
-
-        save_timeline(statuses)
+            save(fp, statuses)
+        fp.close()
