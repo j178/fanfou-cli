@@ -2,14 +2,15 @@
 
 from setuptools import setup
 
-version = '0.1'
+version = '0.1.1'
 
 setup(name='fanfou-cli',
       version=version,
       packages=['fanfoucli'],
       install_requires=['requests-oauthlib'],
       keywords=['internet', 'oauth', 'sns'],
-      description=open('README.md').read(),
+      description='Fanfou Command Line Client',
+      long_description=open('README.md').read(),
       author='John Jiang',
       author_email='nigelchiang@outlook.com',
       license='MIT',

@@ -12,7 +12,7 @@ from requests_oauthlib import OAuth1Session
 
 from . import config as cfg
 
-level = logging.DEBUG
+level = logging.WARN
 logging.basicConfig(level=level,
                     format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
