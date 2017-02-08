@@ -112,7 +112,7 @@ class API:
     def users_friends(self):
         """返回最近登录的好友"""
 
-    def set_privacy(self, lock, cookie):
+    def protect(self, lock, cookie):
         """设置：需要我批准才能查看我的消息"""
         url = 'http://fanfou.com/settings/privacy'
         sess = requests.session()
@@ -278,10 +278,9 @@ class Fan:
             fp.write(text[start:])
 
         since_id = since_id or self.since_id
-
-        first = True
         fp = open('timeline.json', 'a+')
 
+        first = True
         while True:
             s, statuses = self.api.user_timeline(since_id=since_id,
                                                  max_id=max_id,

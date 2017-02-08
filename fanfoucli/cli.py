@@ -13,7 +13,7 @@ def parse_args():
     parser.add_argument('-s', '--save_all_statuses', action='store_true', help='备份所有状态')
     parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息')
     parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
-    parser.add_argument('-b', '--browser', action='store_true', help='浏览模式')
+    parser.add_argument('-l', '--view', action='store_true', help='浏览模式')
     parser.add_argument('-d', '--random', action='store_true', help='随便看看')
     parser.add_argument('-v', '--verbose', action='count', default=0)
     return parser.parse_known_args()
@@ -37,8 +37,8 @@ def main():
         fan.save_all_statuses()
     elif args.revert:
         fan.revert()
-    elif args.privacy is not None:
-        fan.api.set_privacy(bool(args.privacy))
+    elif args.protect is not None:
+        fan.api.protect(bool(args.protect))
     elif args.me:
         print(fan.me())
     elif args.view:
