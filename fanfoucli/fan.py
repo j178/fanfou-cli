@@ -18,7 +18,7 @@ logging.basicConfig(level=level,
                     datefmt='%Y-%m-%d %H:%M:%S')
 
 
-def api_method(category, action):
+def api(category, action):
     def decorator(f):
         def wrapper(self, *args, **kwargs):
             url = self.api_url.format(category, action)
@@ -52,33 +52,54 @@ class API:
         access_token = self.session.fetch_access_token(access_token_url, verifier='123')
         return access_token
 
-    @api_method('statuses', 'update')
+    @api('account', 'verify_credentials')
+    def verify_credentials(self, url, **params):
+        """验证用户名密码是否正确（验证当前授权是否有效）"""
+        return self.session.get(url, params=params)
+
+    @api('account', 'rate_limit_status')
+    def rate_limit_stats(self, url, **params):
+        return self.session.get(url, params=params)
+
+    @api('account', 'update_profile')
+    def update_profile(self, url, **data):
+        """通过API更新用户资料
+        url, location, description, name, email
+        """
+        return self.session.post(url, data=data)
+
+    @api('account', 'notification')
+    def notification(self, url, **params):
+        """返回未读的mentions, direct message 以及关注请求数量"""
+        return self.session.get(url, params=params)
+
+    @api('statuses', 'update')
     def statuses_update(self, url, **data):
         """发布一条状态"""
         if 'status' in data:
             return self.session.post(url, data=data)
 
-    @api_method('statuses', 'destroy')
+    @api('statuses', 'destroy')
     def statuses_destroy(self, url, **data):
         """删除一条状态"""
         return self.session.post(url, data=data)
 
-    @api_method('statuses', 'home_timeline')
+    @api('statuses', 'home_timeline')
     def home_timeline(self, url, **params):
         """获取指定用户的时间线(用户及其关注好友的状态)，该用户为当前登录用户或者未设置隐私"""
         return self.session.get(url, params=params)
 
-    @api_method('statuses', 'user_timeline')
+    @api('statuses', 'user_timeline')
     def user_timeline(self, url, **params):
         """获取某个用户已发送的状态"""
         return self.session.get(url, params=params)
 
-    @api_method('statuses', 'public_timeline')
+    @api('statuses', 'public_timeline')
     def public_timeline(self, url, **params):
         """显示20条随便看看的消息(未设置隐私用户的消息)"""
         return self.session.get(url, params=params)
 
-    @api_method('photo', 'upload')
+    @api('photo', 'upload')
     def photo_upload(self, url, photo_path, **data):
         """发布带图片状态"""
         filename = os.path.basename(photo_path)
@@ -87,12 +108,12 @@ class API:
         return self.session.post(url, data=data, files=file)
         # print(json.dumps(r.json(), ensure_ascii=False, indent=2, sort_keys=True))
 
-    @api_method('users', 'show')
+    @api('users', 'show')
     def users_show(self, url, **params):
         """返回好友或未设置隐私用户的信息"""
         return self.session.get(url, params=params)
 
-    @api_method('users', 'friends')
+    @api('users', 'friends')
     def users_friends(self):
         """返回最近登录的好友"""
 
