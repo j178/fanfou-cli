@@ -7,7 +7,7 @@ pip install fanfou-cli
 ```
 - 手动安装
 ```sh
-git clone https://github.com/j178/fanfoucli
+git clone https://github.com/j178/fanfou-cli
 cd fanfoucli
 pip install . --user
 ```
