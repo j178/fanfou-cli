@@ -21,17 +21,18 @@ $ fan -h
 请在浏览器中打开此网址: http://fanfou.com/oauth/authorize?callback_uri=http%3A%2F%2Fu.nigel.top&oauth_t
 oken=20a6af62dc1913997c48b7d4f03177ef
 ```
-**这个是饭否官方授权第三方应用的页面，请放心打开。**
+**这个是饭否官方授权第三方应用的页面，请放心打开。**  
+
 2. 打开之后会出现如下授权页面：
-![](_images/1.png)
-点击同意，即允许第三方应用操作你在饭否上的数据。
+    ![](_images/1.png)
+    点击同意，即允许第三方应用操作你在饭否上的数据。
 
 3. 然后，浏览器会重定向到一个链接，浏览器会提示无法打开这个页面，没关系，我们需要的只是这个页面的网址，
 即`http://my.nigel.top/callback?oauth_token=db6d6915fe3bb31df2675b9cac1e3569` 这样的东西，将它复制到我们运行的脚本中：
-```sh
-请将跳转后的网站粘贴到这里: http://my.nigel.top/callback?oauth_token=db6d6915fe3bb31df2675b9cac1e3569
-授权完成，可以愉快地发饭啦！
-```
+    ```sh
+    请将跳转后的网站粘贴到这里: http://my.nigel.top/callback?oauth_token=db6d6915fe3bb31df2675b9cac1e3569
+    授权完成，可以愉快地发饭啦！
+    ```
 OK! 授权已经完成了，现在可以愉快地刷饭了！
 
 **整个授权过程都是使用饭否官方地OAuth API，此工具无法获取到你的密码。如果你想取消对此工具的授权，
