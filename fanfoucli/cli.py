@@ -1,6 +1,10 @@
 import argparse
 import logging
+
+import sys
+
 from .fan import Fan
+import signal
 
 
 def parse_args():
@@ -27,7 +31,14 @@ def open_fanfou():
     webbrowser.open_new_tab('http://fanfou.com')
 
 
+def handler(signal, frame):
+    print('\nBye!')
+    sys.exit(0)
+
+
 def main():
+    signal.signal(signal.SIGINT, handler)
+
     fan = Fan()
     args, unknown = parse_args()
 

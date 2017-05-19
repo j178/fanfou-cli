@@ -1,4 +1,7 @@
-from fanfou.new.fanfoucli.fan import Fan
+from fanfoucli.fan import Fan
 
 fan = Fan()
-fan.me()
+try:
+    fan.view()
+except KeyboardInterrupt:
+    print('keyboard interrupt')
