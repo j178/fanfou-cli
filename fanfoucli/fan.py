@@ -41,11 +41,12 @@ class API:
     def auth(self, request_token_url, authorize_url, access_token_url, callback_uri):
         self.session.fetch_request_token(request_token_url)
         authorization_url = self.session.authorization_url(authorize_url, callback_uri=callback_uri)
-        print('Please go here:', authorization_url)
-        redirect_resp = input('Paste the full redirect URL here: ').strip()
+        print('请在浏览器中打开此网址:', authorization_url)
+        redirect_resp = input('请将跳转后的网站粘贴到这里: ').strip()
         self.session.parse_authorization_response(redirect_resp)
         # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
         access_token = self.session.fetch_access_token(access_token_url, verifier='123')
+        print('授权完成，可以愉快地发饭啦！')
         return access_token
 
     @api('account', 'verify_credentials')

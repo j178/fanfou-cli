@@ -1,5 +1,4 @@
 cache.json
-config.py
 __pycache__/
 *.egg-info/
 build/
