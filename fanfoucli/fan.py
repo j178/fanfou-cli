@@ -1,13 +1,13 @@
 #! /usr/bin/env python3
 # Author: John Jiang
 # Date  : 2016/8/29
-import os
-import re
 import json
 import logging
+import math
+import os
+import re
 from datetime import datetime, timezone, timedelta
 
-import math
 import requests
 from requests_oauthlib import OAuth1Session
 
@@ -161,26 +161,17 @@ class Fan:
     @staticmethod
     def load_cache(cache_file):
         if os.path.isfile(cache_file):
-            with open(cfg.CACHE_FILE) as f:
+            with open(cfg.CACHE_FILE, encoding='utf8') as f:
                 return json.load(f)
 
     def save_cache(self):
-        with open(cfg.CACHE_FILE, 'w') as f:
+        with open(cfg.CACHE_FILE, 'w', encoding='utf8') as f:
             json.dump(self._cache, f, ensure_ascii=False, indent=2, sort_keys=True)
-
-    @property
-    def since_id(self):
-        return self._cache.get('since_id', None)
-
-    @since_id.setter
-    def since_id(self, since_id):
-        self._cache['since_id'] = since_id
 
     def me(self):
         s, me = self.api.users_show()
         if s:
-            self._cache['my_latest_status'] = me['status']
-            del me['status']
+            self._cache['my_latest_status'] = me.pop('status')
             self._cache['me'] = me
             self.save_cache()
 
@@ -189,8 +180,7 @@ class Fan:
     def update_status(self, status):
         s, r = self.api.statuses_update(status=status)
         if s:
-            self._cache['me'] = r['user']
-            del r['user']
+            self._cache['me'] = r.pop('user')
             self._cache['my_latest_status'] = r
             self.save_cache()
             print('发布成功: ', r['text'])
@@ -289,7 +279,7 @@ class Fan:
 
     def save_all_statuses(self, filename):
         """
-        定时备份饭否消息(zeng liang bao cun)
+        备份全部饭否消息
 
          since_id: since_id 指的是返回消息中的 id 属性, 是一个奇怪的字符串, 而不是raw_id(应该是饭否数据库中auto increment的主键值)
          max_id: 只返回消息 id 小于等于 max_id 的消息
@@ -318,34 +308,35 @@ class Fan:
             text = json.dumps(statuses, ensure_ascii=False, indent=2, sort_keys=True)
             start = text.index('[') + 1
             end = text.rindex(']')
-            text = text[start:end] + ','
-            fp.write(text)
+            fp.write(text[start:end])
 
         max_id = None
-        fp = open(filename, 'a+')
+        fp = open(filename, 'a+', encoding='utf8')
+        fp.write('[')
+
         first = True
         while True:
-            s, statuses = self.api.user_timeline(since_id=self.since_id, max_id=max_id, count=60, mode='lite')
+            s, statuses = self.api.user_timeline(max_id=max_id, count=60, mode='lite')
             if not s:
                 logging.error(statuses)
                 break
-
             logging.info('Got %s', len(statuses))
-            # 返回空数组时退出
-            if not statuses: break
-
-            if first:
-                self.since_id = statuses[0]['id']
-                self.save_cache()
-                first = False
 
             for status in statuses:
                 del status['user']
                 if 'repost_status' in status:
                     del status['repost_status']['user']
 
+            # 返回空数组时退出
+            if not statuses:
+                fp.write(']')
+                break
+            elif not first:
+                fp.write(',')
+
+            first = False
+            save(fp, statuses)
+
             # 每次获取最新的状态, 找到其中最老的id作为下一次获取时的max_id
             max_id = statuses[-1]['id']
-
-            save(fp, statuses)
         fp.close()

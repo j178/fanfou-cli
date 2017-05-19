@@ -1,10 +1,9 @@
 import argparse
 import logging
-
+import signal
 import sys
 
 from .fan import Fan
-import signal
 
 
 def parse_args():
@@ -14,9 +13,8 @@ def parse_args():
     # 或者一个nagrs=*的positional，但是也可以不提供
     parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
     parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
-    parser.add_argument('-s', '--save_all_statuses', action='store_const',
-                        const='timeline.json', help='备份所有状态,输入保存文件名')
-    parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息')
+    parser.add_argument('-s', '--save_all_statuses', nargs='?', const='timeline.json', help='备份所有状态为JSON格式,输入保存文件名')
+    parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
     parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
     parser.add_argument('-u', '--user', help='查看他人信息')
     parser.add_argument('-l', '--view', action='store_true', help='浏览模式')
