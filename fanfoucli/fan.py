@@ -6,6 +6,8 @@ import logging
 import math
 import os
 import re
+import io
+import time
 from datetime import datetime, timezone, timedelta
 
 import requests
@@ -96,14 +98,12 @@ class API:
         """显示20条随便看看的消息(未设置隐私用户的消息)"""
         return self.session.get(url, params=params)
 
-    @api('photo', 'upload')
-    def photo_upload(self, url, photo_path, **data):
+    @api('photos', 'upload')
+    def photo_upload(self, url, photo_data, **data):
         """发布带图片状态"""
-        filename = os.path.basename(photo_path)
         # {name : (filename, filedata, content_type, {headers})}
-        file = {'photo': (filename, open(photo_path, 'rb'))}
+        file = {'photo': ('photo-from-fanfou-cli.png', photo_data)}
         return self.session.post(url, data=data, files=file)
-        # print(json.dumps(r.json(), ensure_ascii=False, indent=2, sort_keys=True))
 
     @api('users', 'show')
     def users_show(self, url, **params):
@@ -339,4 +339,22 @@ class Fan:
 
             # 每次获取最新的状态, 找到其中最老的id作为下一次获取时的max_id
             max_id = statuses[-1]['id']
+            time.sleep(1)
         fp.close()
+
+    def upload_photos(self, status, image):
+        if os.path.isfile(image):
+            with open(image, 'rb') as f:
+                s, r = self.api.photo_upload(f, status=status)
+        else:
+            try:
+                url = image.strip('\'').strip('"')
+                data = io.BytesIO(requests.get(url).content)
+                s, r = self.api.photo_upload(data, status=status)
+            except requests.RequestException:
+                print('获取网络图片出错')
+                return
+        if s:
+            print('发布成功: {}\n图片地址: {}'.format(r['text'], r['photo']['url']))
+        else:
+            print('发布失败: ', r)

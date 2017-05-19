@@ -12,6 +12,7 @@ def parse_args():
     # add参数是可选的，但是我也想不加-a时且没有其他参数时也执行这个动作
     # 或者一个nagrs=*的positional，但是也可以不提供
     parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
+    parser.add_argument('-i', '--image', help='添加图片')
     parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
     parser.add_argument('-s', '--save_all_statuses', nargs='?', const='timeline.json', help='备份所有状态为JSON格式,输入保存文件名')
     parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
@@ -65,14 +66,19 @@ def main():
         import fanfoucli
         print(fanfoucli.__version__)
     else:
+        status = ''
         if args.new:
             status = ' '.join(args.new)
         elif unknown:
             status = ' '.join(unknown)
-        else:
+        elif not args.image:
             open_fanfou()
             return
-        fan.update_status(status)
+        # 发图片
+        if args.image:
+            fan.upload_photos(status, args.image)
+        else:
+            fan.update_status(status)
 
 
 if __name__ == '__main__':
