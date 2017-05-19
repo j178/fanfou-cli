@@ -1,12 +1,13 @@
 #! /usr/bin/env python3
 # Author: John Jiang
 # Date  : 2016/8/29
-
-import json
-import logging
 import os
 import re
+import json
+import logging
+from datetime import datetime, timezone, timedelta
 
+import math
 import requests
 from requests_oauthlib import OAuth1Session
 
@@ -30,12 +31,12 @@ def api(category, action):
 
 class API:
     def __init__(self, consumer_key, consumer_secret, access_token=None, **urls):
+        self.api_url = urls.pop('api_url')
         self.consumer_key = consumer_key
         self.consumer_secret = consumer_secret
         self.session = OAuth1Session(consumer_key, consumer_secret)
         self.access_token = access_token or self.auth(**urls)
         self.session._populate_attributes(self.access_token)
-        self.api_url = urls['api_url']
 
     def auth(self, request_token_url, authorize_url, access_token_url, callback_uri):
         self.session.fetch_request_token(request_token_url)
@@ -113,6 +114,7 @@ class API:
         """返回最近登录的好友"""
 
     def protect(self, lock, cookie):
+
         """设置：需要我批准才能查看我的消息"""
         url = 'http://fanfou.com/settings/privacy'
         sess = requests.session()
@@ -128,8 +130,8 @@ class API:
         token = re.search(r'<input type="hidden" name="token" value="(.+?)"', resp.text).group(1)
         data = {
             'attrfindme': 'On',
-            'action'    : 'settings.privacy',
-            'token'     : token
+            'action': 'settings.privacy',
+            'token': token
         }
         if lock:
             data['status'] = 'On'
@@ -181,7 +183,7 @@ class Fan:
             self._cache['me'] = me
             self.save_cache()
 
-        return json.dumps(me, ensure_ascii=False, indent=2, sort_keys=True)
+            self.display_user(me)
 
     def update_status(self, status):
         s, r = self.api.statuses_update(status=status)
@@ -209,17 +211,57 @@ class Fan:
         print('撤回失败:', error)
 
     @staticmethod
+    def display_user(user):
+        screen_name = user['screen_name']
+        id = user['id']
+        gender = user['gender']
+        location = user['location']
+        description = user['description']
+        url = user['url']
+
+        created_at = datetime.strptime(user['created_at'], '%a %b %d %H:%M:%S %z %Y')
+        now = datetime.now(tz=timezone(timedelta(hours=8)))
+        created_days = (now - created_at).days
+        followers_count = user['followers_count']
+        friends_count = user['friends_count']
+        statuses_count = user['statuses_count']
+        count_per_day = math.ceil(statuses_count / created_days)
+
+        template = ('{name} @{id}\n'
+                    '创建于 {created_at}\n'
+                    '{gender}'
+                    '位置: {location}\n'
+                    '描述: {description}\n'
+                    '主页: {url}\n'
+                    '总消息: {statuses} (每天{count_per_day}条)\n'
+                    '关注者: {followers}\n'
+                    '正在关注: {friends}')
+
+        print(template.format(name=screen_name, id=id,
+                              gender='性别: ' + gender + '\n' if gender else '',
+                              location=location,
+                              description=description,
+                              url=url,
+                              created_at=created_at.strftime('%x %X'),
+                              statuses=statuses_count,
+                              followers=followers_count,
+                              friends=friends_count,
+                              count_per_day=count_per_day
+                              ))
+
+    @staticmethod
     def display_statuses(statuses):
         text = []
         for i, status in enumerate(statuses, start=1):
             photo = '[图片]' if 'photo' in status else ''
             truncated = '$' if status['truncated'] else ''
 
-            text.append('[{:2}] [{}]: {} {} {}'.format(i,
-                                                       status['user']['name'],
-                                                       status['text'],
-                                                       photo,
-                                                       truncated))
+            text.append('[{:2}] [{}] @{}: {} {} {}'.format(i,
+                                                           status['user']['name'],
+                                                           status['user']['id'],
+                                                           status['text'],
+                                                           photo,
+                                                           truncated))
         print('\n'.join(text))
 
     def view(self):
@@ -244,15 +286,15 @@ class Fan:
         else:
             print(timeline)
 
-    def save_all_statuses(self, since_id=None, max_id=None, count=60, mode='lite'):
+    def save_all_statuses(self, filename):
         """
-        定时备份饭否消息
+        定时备份饭否消息(zeng liang bao cun)
 
-        :param since_id: since_id 指的是返回消息中的 id 属性, 是一个奇怪的字符串, 而不是raw_id(应该是饭否数据库中auto increment的主键值)
-        :param max_id: 只返回消息 id 小于等于 max_id 的消息
-        :param count: 1-60
-        :param page: 指定返回结果的页码, 不知道怎么用
-        :param str mode: default|lite 没有区别
+         since_id: since_id 指的是返回消息中的 id 属性, 是一个奇怪的字符串, 而不是raw_id(应该是饭否数据库中auto increment的主键值)
+         max_id: 只返回消息 id 小于等于 max_id 的消息
+         count: 1-60
+         page: 指定返回结果的页码, 不知道怎么用
+         mode: default|lite 没有区别
         """
 
         def save(fp, statuses):
@@ -274,25 +316,23 @@ class Fan:
 
             text = json.dumps(statuses, ensure_ascii=False, indent=2, sort_keys=True)
             start = text.index('[') + 1
-            text[text.rindex(']')] = ','
-            fp.write(text[start:])
+            end = text.rindex(']')
+            text = text[start:end] + ','
+            fp.write(text)
 
-        since_id = since_id or self.since_id
-        fp = open('timeline.json', 'a+')
-
+        max_id = None
+        fp = open(filename, 'a+')
         first = True
         while True:
-            s, statuses = self.api.user_timeline(since_id=since_id,
-                                                 max_id=max_id,
-                                                 count=count,
-                                                 mode=mode)
+            s, statuses = self.api.user_timeline(since_id=self.since_id, max_id=max_id, count=60, mode='lite')
             if not s:
                 logging.error(statuses)
                 break
-            logging.info('Got %s', len(statuses))
 
+            logging.info('Got %s', len(statuses))
             # 返回空数组时退出
             if not statuses: break
+
             if first:
                 self.since_id = statuses[0]['id']
                 self.save_cache()

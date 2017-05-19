@@ -1,9 +1,17 @@
 ## 饭否命令行客户端
 
 ### 使用
-1. `git clone xx && cd fanfoucli`
-2. `pip install . --user`
-3. `fan -h`
+- 方式一：
+```sh
+pip install fanfou-cli
+```
+- 方式二：
+```sh
+git clone https://github.com/j178/fanfoucli
+cd fanfoucli
+pip install . --user
+fan 这是一条新饭
+```
 
 ### 依赖
 - Python3

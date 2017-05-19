@@ -10,12 +10,15 @@ def parse_args():
     # 或者一个nagrs=*的positional，但是也可以不提供
     parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
     parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
-    parser.add_argument('-s', '--save_all_statuses', action='store_true', help='备份所有状态')
+    parser.add_argument('-s', '--save_all_statuses', action='store_const',
+                        const='timeline.json', help='备份所有状态,输入保存文件名')
     parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息')
     parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
+    parser.add_argument('-u', '--user', help='查看他人信息')
     parser.add_argument('-l', '--view', action='store_true', help='浏览模式')
     parser.add_argument('-d', '--random', action='store_true', help='随便看看')
     parser.add_argument('-v', '--verbose', action='count', default=0)
+    parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
     return parser.parse_known_args()
 
 
@@ -34,17 +37,24 @@ def main():
                         datefmt='%Y-%m-%d %H:%M:%S')
 
     if args.save_all_statuses:
-        fan.save_all_statuses()
+        fan.save_all_statuses(args.save_all_statuses)
     elif args.revert:
         fan.revert()
     elif args.protect is not None:
         fan.api.protect(bool(args.protect))
     elif args.me:
-        print(fan.me())
+        fan.me()
+    elif args.user:
+        s, user = fan.api.users_show(id=args.user)
+        if s:
+            fan.display_user(user)
     elif args.view:
         fan.view()
     elif args.random:
         fan.random_view()
+    elif args.version:
+        import fanfoucli
+        print(fanfoucli.__version__)
     else:
         if args.new:
             status = ' '.join(args.new)
