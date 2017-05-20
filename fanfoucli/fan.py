@@ -1,12 +1,13 @@
 #! /usr/bin/env python3
 # Author: John Jiang
 # Date  : 2016/8/29
+import io
 import json
 import logging
 import math
 import os
 import re
-import io
+import sys
 import time
 from datetime import datetime, timezone, timedelta
 
@@ -16,11 +17,25 @@ from requests_oauthlib import OAuth1Session
 from . import config as cfg
 
 
-def api(category, action):
+def api(method, category, action):
     def decorator(f):
         def wrapper(self, *args, **kwargs):
             url = self.api_url.format(category, action)
-            result = f(self, url, *args, **kwargs)
+            params, data, files = f(self, *args, **kwargs)
+            failure = 0
+            while True:
+                try:
+                    result = self.session.request(method, url, params=params, data=data, files=files, timeout=5)
+                except ValueError as e:
+                    print(e)
+                    sys.exit(1)
+                except requests.RequestException:
+                    failure += 1
+                else:
+                    break
+                if failure >= 3:
+                    print('网络请求失败')
+                    sys.exit(1)
             j = result.json()
             if result.status_code == 200:
                 return True, j
@@ -51,68 +66,69 @@ class API:
         print('授权完成，可以愉快地发饭啦！')
         return access_token
 
-    @api('account', 'verify_credentials')
-    def verify_credentials(self, url, **params):
+    @api('GET', 'account', 'verify_credentials')
+    def verify_credentials(self, **params):
         """验证用户名密码是否正确（验证当前授权是否有效）"""
-        return self.session.get(url, params=params)
+        return params, None, None
 
-    @api('account', 'rate_limit_status')
-    def rate_limit_stats(self, url, **params):
-        return self.session.get(url, params=params)
+    @api('GET', 'account', 'rate_limit_status')
+    def rate_limit_stats(self, **params):
+        return params, None, None
 
-    @api('account', 'update_profile')
-    def update_profile(self, url, **data):
+    @api('GET', 'account', 'update_profile')
+    def update_profile(self, **data):
         """通过API更新用户资料
         url, location, description, name, email
         """
-        return self.session.post(url, data=data)
+        return None, data, None
 
-    @api('account', 'notification')
-    def notification(self, url, **params):
+    @api('GET', 'account', 'notification')
+    def notification(self, **params):
         """返回未读的mentions, direct message 以及关注请求数量"""
-        return self.session.get(url, params=params)
+        return params, None, None
 
-    @api('statuses', 'update')
-    def statuses_update(self, url, **data):
+    @api('POST', 'statuses', 'update')
+    def statuses_update(self, **data):
         """发布一条状态"""
         if 'status' in data:
-            return self.session.post(url, data=data)
+            return None, data, None
 
-    @api('statuses', 'destroy')
-    def statuses_destroy(self, url, **data):
+    @api('POST', 'statuses', 'destroy')
+    def statuses_destroy(self, **data):
         """删除一条状态"""
-        return self.session.post(url, data=data)
+        return None, data, None
 
-    @api('statuses', 'home_timeline')
-    def home_timeline(self, url, **params):
+    @api('GET', 'statuses', 'home_timeline')
+    def home_timeline(self, **params):
         """获取指定用户的时间线(用户及其关注好友的状态)，该用户为当前登录用户或者未设置隐私"""
-        return self.session.get(url, params=params)
+        return params, None, None
 
-    @api('statuses', 'user_timeline')
-    def user_timeline(self, url, **params):
+    @api('GET', 'statuses', 'user_timeline')
+    def user_timeline(self, **params):
         """获取某个用户已发送的状态"""
-        return self.session.get(url, params=params)
+        return params, None, None
 
-    @api('statuses', 'public_timeline')
-    def public_timeline(self, url, **params):
+    @api('GET', 'statuses', 'public_timeline')
+    def public_timeline(self, **params):
         """显示20条随便看看的消息(未设置隐私用户的消息)"""
-        return self.session.get(url, params=params)
+        return params, None, None
 
-    @api('photos', 'upload')
-    def photo_upload(self, url, photo_data, **data):
+    @api('POST', 'photos', 'upload')
+    def photo_upload(self, photo_data, **data):
         """发布带图片状态"""
         # {name : (filename, filedata, content_type, {headers})}
         file = {'photo': ('photo-from-fanfou-cli.png', photo_data)}
-        return self.session.post(url, data=data, files=file)
+        return None, data, file
 
-    @api('users', 'show')
-    def users_show(self, url, **params):
+    @api('GET', 'users', 'show')
+    def users_show(self, **params):
         """返回好友或未设置隐私用户的信息"""
-        return self.session.get(url, params=params)
+        return params, None, None
 
-    @api('users', 'friends')
-    def users_friends(self):
+    @api('GET', 'users', 'friends')
+    def users_friends(self, **params):
         """返回最近登录的好友"""
+        return params, None, None
 
     def protect(self, lock, cookie):
 
@@ -351,7 +367,7 @@ class Fan:
                 url = image.strip('\'').strip('"')
                 data = io.BytesIO(requests.get(url).content)
                 s, r = self.api.photo_upload(data, status=status)
-            except requests.RequestException:
+            except requests.RequestException as e:
                 print('获取网络图片出错')
                 return
         if s:

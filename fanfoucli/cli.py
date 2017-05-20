@@ -67,9 +67,16 @@ def main():
         print(fanfoucli.__version__)
     else:
         status = ''
-        if args.new:
+        unknown_str = ''
+        if unknown:
+            unknown_str = ''.join(unknown).strip()
+        if unknown_str == '-':  # fan - read status from stdin
+            status = sys.stdin.read()
+        elif args.new:  # fan -n something
             status = ' '.join(args.new)
-        elif unknown:
+        elif not sys.stdin.isatty() and not args.image:  # echo something | fan
+            status = sys.stdin.read()
+        elif unknown:  # fan anything
             status = ' '.join(unknown)
         elif not args.image:
             open_fanfou()
