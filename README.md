@@ -3,13 +3,13 @@
 ### 安装
 - 通过pip安装
 ```sh
-pip install fanfou-cli
+pip3 install fanfou-cli
 ```
 - 手动安装
 ```sh
 git clone https://github.com/j178/fanfou-cli
-cd fanfoucli
-pip install . --user
+cd fanfou-cli
+pip3 install . --user
 ```
 
 ### 使用
@@ -65,7 +65,10 @@ OK! 授权已经完成了，现在可以愉快地刷饭了！
 ### 依赖
 - Python3
 - requests-oauthlib
+- arrow
 
 ### TODO
+- [x] 图片上传
+- [x] colorize
+- [x] time humanize
 - [ ] 转发消息
-- [ ] colorize

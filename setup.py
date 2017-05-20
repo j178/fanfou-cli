@@ -7,7 +7,7 @@ import fanfoucli
 setup(name='fanfou-cli',
       version=fanfoucli.__version__,
       packages=['fanfoucli'],
-      install_requires=['requests-oauthlib'],
+      install_requires=['requests-oauthlib', 'arrow'],
       keywords=['internet', 'oauth', 'sns'],
       description='Fanfou Command Line Client',
       long_description=open('README.md', encoding='utf8').read(),

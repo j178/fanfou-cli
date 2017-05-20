@@ -11,10 +11,64 @@ import sys
 import time
 from datetime import datetime, timezone, timedelta
 
+import arrow
 import requests
 from requests_oauthlib import OAuth1Session
 
 from . import config as cfg
+
+ATTRIBUTES = {
+    'bold': 1,
+    'dark': 2,
+    'underline': 4,
+    'blink': 5,
+    'reverse': 7,
+    'concealed': 8
+}
+
+HIGHLIGHTS = {
+    'on_grey': 40,
+    'on_red': 41,
+    'on_green': 42,
+    'on_yellow': 43,
+    'on_blue': 44,
+    'on_magenta': 45,
+    'on_cyan': 46,
+    'on_white': 47
+}
+
+COLORS = {
+    'grey': 30,
+    'red': 31,
+    'green': 32,
+    'yellow': 33,
+    'blue': 34,
+    'magenta': 35,
+    'cyan': 36,
+    'white': 37,
+}
+RESET = '\033[0m'
+
+
+def cstring(text, color=None, on_color=None, attrs=None, **kwargs):
+    fmt_str = '\033[%dm%s'
+    if color is not None:
+        text = fmt_str % (COLORS[color], text)
+
+    if on_color is not None:
+        text = fmt_str % (HIGHLIGHTS[on_color], text)
+
+    if attrs is not None:
+        for attr in attrs:
+            text = fmt_str % (ATTRIBUTES[attr], text)
+
+    text += RESET
+    return text
+
+
+def cprint(text, color=None, on_color=None, attrs=None, **kwargs):
+    text = cstring(text, color, on_color, attrs)
+    print(text, **kwargs)
 
 
 def api(method, category, action):
@@ -34,7 +88,7 @@ def api(method, category, action):
                 else:
                     break
                 if failure >= 3:
-                    print('网络请求失败')
+                    cprint('[x] 网络请求失败', color='red')
                     sys.exit(1)
             j = result.json()
             if result.status_code == 200:
@@ -58,12 +112,13 @@ class API:
     def auth(self, request_token_url, authorize_url, access_token_url, callback_uri):
         self.session.fetch_request_token(request_token_url)
         authorization_url = self.session.authorization_url(authorize_url, callback_uri=callback_uri)
-        print('请在浏览器中打开此网址:', authorization_url)
-        redirect_resp = input('请将跳转后的网站粘贴到这里: ').strip()
+        cprint('[-] 请在浏览器中打开此网址: ', color='cyan', end='')
+        print(authorization_url, '\n\n')
+        redirect_resp = input(cstring('[-] 请将跳转后的网站粘贴到这里: ', color='cyan')).strip()
         self.session.parse_authorization_response(redirect_resp)
         # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
         access_token = self.session.fetch_access_token(access_token_url, verifier='123')
-        print('授权完成，可以愉快地发饭啦！')
+        cprint('授权完成，可以愉快地发饭啦！', color='green')
         return access_token
 
     @api('GET', 'account', 'verify_credentials')
@@ -199,9 +254,9 @@ class Fan:
             self._cache['me'] = r.pop('user')
             self._cache['my_latest_status'] = r
             self.save_cache()
-            print('发布成功: ', r['text'])
+            cprint('[-] 发布成功: %s' % r['text'], color='green')
         else:
-            print('发布失败: ', r)
+            cprint('[x] 发布失败: %s' % r, color='red')
 
     def revert(self):
         s, latest = self.api.user_timeline(count=1)
@@ -212,10 +267,10 @@ class Fan:
             self._cache['me'] = info['user']
             self.save_cache()
             if s:
-                print('撤回成功: ', info['text'])
+                cprint('[-] 撤回成功: %s' % info['text'], color='green')
                 return
             error = info
-        print('撤回失败:', error)
+        cprint('[x] 撤回失败: %s' % error, color='red')
 
     @staticmethod
     def display_user(user):
@@ -226,63 +281,71 @@ class Fan:
         description = user['description']
         url = user['url']
 
-        created_at = datetime.strptime(user['created_at'], '%a %b %d %H:%M:%S %z %Y')
-        now = datetime.now(tz=timezone(timedelta(hours=8)))
-        created_days = (now - created_at).days
+        created_at = arrow.get(user['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY')
+        created_days = (arrow.now(tz='+08:00') - created_at).days
         followers_count = user['followers_count']
         friends_count = user['friends_count']
         statuses_count = user['statuses_count']
         count_per_day = math.ceil(statuses_count / created_days)
 
-        template = ('{name} @{id}\n'
-                    '创建于 {created_at}\n'
-                    '{gender}'
-                    '位置: {location}\n'
-                    '描述: {description}\n'
-                    '主页: {url}\n'
-                    '总消息: {statuses} (每天{count_per_day}条)\n'
-                    '关注者: {followers}\n'
-                    '正在关注: {friends}')
+        template = ('{name} @ {id}\n' +
+                    cstring('创建于: ', 'blue') + '{created_at}\n' +
+                    '{gender}' +
+                    cstring('位置: ', 'blue') + '{location}\n' +
+                    cstring('描述: ', 'blue') + '{description}\n' +
+                    cstring('主页: ', 'blue') + '{url}\n' +
+                    cstring('总消息: ', 'blue') + '{statuses} (每天{count_per_day}饭)\n' +
+                    cstring('关注者: ', 'blue') + '{followers}\n' +
+                    cstring('正在关注: ', 'blue') + '{friends}')
 
-        print(template.format(name=screen_name, id=id,
-                              gender='性别: ' + gender + '\n' if gender else '',
-                              location=location,
-                              description=description,
-                              url=url,
-                              created_at=created_at.strftime('%x %X'),
-                              statuses=statuses_count,
-                              followers=followers_count,
-                              friends=friends_count,
-                              count_per_day=count_per_day
-                              ))
+        print(template.format(
+            name=cstring(screen_name, 'green'),
+            id=cstring(id, 'blue'),
+            gender=cstring('性别: ', 'blue') + gender + '\n' if gender else '',
+            location=location,
+            description=description,
+            url=url,
+            created_at=created_at.humanize(locale='zh'),
+            statuses=statuses_count,
+            followers=followers_count,
+            friends=friends_count,
+            count_per_day=cstring(str(count_per_day), 'magenta')
+        ))
 
     @staticmethod
-    def display_statuses(statuses):
-        text = []
-        for i, status in enumerate(statuses, start=1):
-            photo = '[图片]' if 'photo' in status else ''
-            truncated = '$' if status['truncated'] else ''
-
-            text.append('[{:2}] [{}] @{}: {} {} {}'.format(i,
-                                                           status['user']['name'],
-                                                           status['user']['id'],
-                                                           status['text'],
-                                                           photo,
-                                                           truncated))
-        print('\n'.join(text))
+    def display_statuses(timeline):
+        statuses = []
+        at_re = re.compile(r'@<a.*?>(.*?)</a>', re.I)
+        topic_re = re.compile(r'#<a.*?>(.*?)</a>#')
+        for status in timeline:
+            photo = cstring('[图]', 'green') if 'photo' in status else ''
+            truncated = cstring('$', 'magenta') if status['truncated'] else ''
+            created_at = arrow.get(status['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY').humanize(locale='zh')
+            text = at_re.sub(cstring('@\\1', color='blue'), status['text'])
+            text = topic_re.sub(cstring('#\\1#', color='cyan'), text)
+            statuses.append(
+                '[{}@{}] {} {} {} {}'.format(
+                    cstring(status['user']['name'], 'green'),
+                    cstring(status['user']['id'], 'blue'),
+                    text,
+                    photo,
+                    truncated,
+                    cstring('(' + created_at + ')', 'white')))
+        print('\n'.join(statuses))
 
     def view(self):
         """浏览模式"""
         max_id = None
         while True:
-            s, timeline = self.api.home_timeline(count=10, max_id=max_id)
+            s, timeline = self.api.home_timeline(count=10, max_id=max_id, format='html')
             if not s:
                 print(s)
                 break
             max_id = timeline[-1]['id']
             self.display_statuses(timeline)
 
-            key = input('Enter <j> to next page, any other key to exit >').strip()
+            prompt = cstring('[-] 按', 'cyan') + cstring(' j ', 'magenta') + cstring('翻页, 其他键退出 >', 'cyan')
+            key = input(prompt).strip()
             if key != 'j':
                 break
 
@@ -336,6 +399,7 @@ class Fan:
             if not s:
                 logging.error(statuses)
                 break
+            # todo 做成进度条
             logging.info('Got %s', len(statuses))
 
             for status in statuses:
@@ -346,6 +410,7 @@ class Fan:
             # 返回空数组时退出
             if not statuses:
                 fp.write(']')
+                print('备份完成！，请查看\'{}\'文件'.format(filename))
                 break
             elif not first:
                 fp.write(',')
@@ -365,12 +430,17 @@ class Fan:
         else:
             try:
                 url = image.strip('\'').strip('"')
-                data = io.BytesIO(requests.get(url).content)
+                resp = requests.get(url)
+                resp.raise_for_status()
+                if not resp.headers.get('Content-Type', '').startswith('image/'):
+                    cprint('[x] 提供的URL不是图片URL', 'red')
+                    return
+                data = io.BytesIO(resp.content)
                 s, r = self.api.photo_upload(data, status=status)
             except requests.RequestException as e:
-                print('获取网络图片出错')
+                cprint('[x] 获取网络图片出错', 'red')
                 return
         if s:
-            print('发布成功: {}\n图片地址: {}'.format(r['text'], r['photo']['url']))
+            print(cstring('[-] 发布成功: ', 'cyan') + r['text'] + '\n' + cstring('[-] 图片地址: ', 'cyan') + r['photo']['url'])
         else:
-            print('发布失败: ', r)
+            cprint('[x] 发布失败: %s' % r, 'red')
