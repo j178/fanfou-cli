@@ -14,7 +14,8 @@ def parse_args():
     parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
     parser.add_argument('-i', '--image', help='添加图片')
     parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
-    parser.add_argument('-s', '--save_all_statuses', nargs='?', const='timeline.json', help='备份所有状态为JSON格式,输入保存文件名')
+    parser.add_argument('-s', '--save_all_statuses', metavar='FILENAME', nargs='?', const='timeline.json',
+                        help='备份所有状态为JSON格式,输入保存文件名')
     parser.add_argument('-p', '--protect', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
     parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
     parser.add_argument('-u', '--user', help='查看他人信息')
