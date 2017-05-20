@@ -2,6 +2,6 @@ from new.fanfoucli.fan import Fan
 
 fan = Fan()
 try:
-    fan.me()
+    print(fan.view())
 except KeyboardInterrupt:
     print('keyboard interrupt')

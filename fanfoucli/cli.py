@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+# coding=utf-8
+# Author: John Jiang
+# Date  : 2016/8/29
+
 import argparse
 import logging
 import signal
@@ -39,13 +44,12 @@ def handler(signal, frame):
 def main():
     signal.signal(signal.SIGINT, handler)
 
-    fan = Fan()
     args, unknown = parse_args()
-
     level = logging.DEBUG if args.verbose >= 2 else logging.INFO
     logging.basicConfig(level=level,
                         format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
+    fan = Fan()
 
     if args.save_all_statuses:
         fan.save_all_statuses(args.save_all_statuses)

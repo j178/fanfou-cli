@@ -1,5 +1,7 @@
+#!/usr/bin/env python3
+# coding=utf-8
 # Author: John Jiang
-# Date  : 2016/8/17
+# Date  : 2016/8/29
 import os
 
 CONSUMER_KEY = 'b55d535f350dcc59c3f10e9cf43c1749'

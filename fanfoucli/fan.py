@@ -1,6 +1,8 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
+# coding=utf-8
 # Author: John Jiang
 # Date  : 2016/8/29
+
 import io
 import json
 import logging
@@ -14,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 import arrow
 import requests
 from requests_oauthlib import OAuth1Session
+from requests_oauthlib.oauth1_session import TokenRequestDenied
 
 from . import config as cfg
 
@@ -110,15 +113,20 @@ class API:
         self.session._populate_attributes(self.access_token)
 
     def auth(self, request_token_url, authorize_url, access_token_url, callback_uri):
-        self.session.fetch_request_token(request_token_url)
-        authorization_url = self.session.authorization_url(authorize_url, callback_uri=callback_uri)
-        cprint('[-] 请在浏览器中打开此网址: ', color='cyan', end='')
-        print(authorization_url, '\n\n')
-        redirect_resp = input(cstring('[-] 请将跳转后的网站粘贴到这里: ', color='cyan')).strip()
-        self.session.parse_authorization_response(redirect_resp)
-        # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
-        access_token = self.session.fetch_access_token(access_token_url, verifier='123')
-        cprint('授权完成，可以愉快地发饭啦！', color='green')
+        try:
+            self.session.fetch_request_token(request_token_url)
+            authorization_url = self.session.authorization_url(authorize_url, callback_uri=callback_uri)
+            cprint('[-] 请在浏览器中打开此网址: ', color='cyan')
+            print(authorization_url)
+
+            redirect_resp = input(cstring('[-] 请将跳转后的网站粘贴到这里: ', color='cyan')).strip()
+            self.session.parse_authorization_response(redirect_resp)
+            # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
+            access_token = self.session.fetch_access_token(access_token_url, verifier='123')
+            cprint('[+] 授权完成，可以愉快地发饭啦！', color='green')
+        except TokenRequestDenied as e:
+            cprint('[x] 授权失败，请检查本地时间与网络时间是否同步', color='red')
+            sys.exit(1)
         return access_token
 
     @api('GET', 'account', 'verify_credentials')
@@ -130,17 +138,17 @@ class API:
     def rate_limit_stats(self, **params):
         return params, None, None
 
+    @api('GET', 'account', 'notification')
+    def account_notification(self, **params):
+        """返回未读的mentions, direct message 以及关注请求数量"""
+        return params, None, None
+
     @api('GET', 'account', 'update_profile')
     def update_profile(self, **data):
         """通过API更新用户资料
         url, location, description, name, email
         """
         return None, data, None
-
-    @api('GET', 'account', 'notification')
-    def notification(self, **params):
-        """返回未读的mentions, direct message 以及关注请求数量"""
-        return params, None, None
 
     @api('POST', 'statuses', 'update')
     def statuses_update(self, **data):
@@ -184,6 +192,11 @@ class API:
     def users_friends(self, **params):
         """返回最近登录的好友"""
         return params, None, None
+
+    @api('POST', 'friendships', 'create')
+    def friendships_create(self, **data):
+        if 'id' in data:
+            return None, data, None
 
     def protect(self, lock, cookie):
 
@@ -248,13 +261,13 @@ class Fan:
 
             self.display_user(me)
 
-    def update_status(self, status):
-        s, r = self.api.statuses_update(status=status)
+    def update_status(self, status, **params):
+        s, r = self.api.statuses_update(status=status, mode='lite', **params)
         if s:
             self._cache['me'] = r.pop('user')
             self._cache['my_latest_status'] = r
             self.save_cache()
-            cprint('[-] 发布成功: %s' % r['text'], color='green')
+            print(cstring('[-] 发布成功:', color='green'), self.process_status_text(r['text']))
         else:
             cprint('[x] 发布失败: %s' % r, color='red')
 
@@ -272,8 +285,8 @@ class Fan:
             error = info
         cprint('[x] 撤回失败: %s' % error, color='red')
 
-    @staticmethod
-    def display_user(user):
+    @classmethod
+    def display_user(cls, user):
         screen_name = user['screen_name']
         id = user['id']
         gender = user['gender']
@@ -312,19 +325,28 @@ class Fan:
             count_per_day=cstring(str(count_per_day), 'magenta')
         ))
 
-    @staticmethod
-    def display_statuses(timeline):
-        statuses = []
+    @classmethod
+    def process_status_text(cls, text):
         at_re = re.compile(r'@<a.*?>(.*?)</a>', re.I)
-        topic_re = re.compile(r'#<a.*?>(.*?)</a>#')
-        for status in timeline:
+        topic_re = re.compile(r'#<a.*?>(.*?)</a>#', re.I)
+        link_re = re.compile(r'<a.*?rel="nofollow" target="_blank">(.*)</a>', re.I)
+        text = at_re.sub(cstring('@\\1', color='blue'), text)
+        text = topic_re.sub(cstring('#\\1#', color='cyan'), text)
+        text = link_re.sub(cstring('\\1', 'cyan'), text)
+        return text
+
+    @classmethod
+    def display_statuses(cls, timeline):
+        statuses = []
+
+        for i, status in enumerate(timeline):
             photo = cstring('[图]', 'green') if 'photo' in status else ''
             truncated = cstring('$', 'magenta') if status['truncated'] else ''
             created_at = arrow.get(status['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY').humanize(locale='zh')
-            text = at_re.sub(cstring('@\\1', color='blue'), status['text'])
-            text = topic_re.sub(cstring('#\\1#', color='cyan'), text)
+            text = cls.process_status_text(status['text'])
             statuses.append(
-                '[{}@{}] {} {} {} {}'.format(
+                '[{:-2}] [{}@{}] {} {} {} {}'.format(
+                    i,
                     cstring(status['user']['name'], 'green'),
                     cstring(status['user']['id'], 'blue'),
                     text,
@@ -335,26 +357,75 @@ class Fan:
 
     def view(self):
         """浏览模式"""
+
+        def get_input():
+            prompt = cstring('[-] <j> 翻页|<c 序号 xxx> 评论|<r 序号 xxx> 转发|<f 序号 xxx> 关注原PO|<q>退出 >', 'cyan')
+            try:
+                key = input(prompt).strip()
+                if key == 'j':
+                    return 'j', None, None
+                elif key == 'q':
+                    return 'q', None, None
+                else:
+                    keys = key.split(' ')
+                    command, number, *content = keys
+                    number = int(number)
+                    if not (0 <= number <= len(timeline)):
+                        raise ValueError
+                    content = ' '.join(content)
+                    return command, number, content
+            except EOFError:
+                return 'q', None, None
+            except ValueError:
+                # cprint('[x] 输入格式有误，退出中...', 'red')
+                return None, None, None
+
         max_id = None
         while True:
-            s, timeline = self.api.home_timeline(count=10, max_id=max_id, format='html')
+            s, timeline = self.api.home_timeline(count=10, max_id=max_id, format='html', mode='lite')
             if not s:
-                print(s)
+                cprint('[x] ' + timeline, 'red')
                 break
             max_id = timeline[-1]['id']
             self.display_statuses(timeline)
 
-            prompt = cstring('[-] 按', 'cyan') + cstring(' j ', 'magenta') + cstring('翻页, 其他键退出 >', 'cyan')
-            key = input(prompt).strip()
-            if key != 'j':
-                break
+            while True:
+                command, number, content = get_input()
+                if command == 'j':
+                    break
+                elif command == 'c':
+                    status = '@' + timeline[number]['user']['screen_name'] + ' ' + content
+                    reply_to_user_id = timeline[number]['user']['id']
+                    reply_to_status_id = timeline[number]['id']
+                    self.update_status(status=status, in_reply_to_user_id=reply_to_user_id,
+                                       in_reply_to_status_id=reply_to_status_id, format='html')
+                elif command == 'r':
+                    # 去掉返回消息中的HTML标记，因为上传的时候服务器会根据@,##等标记自动生成
+                    status = re.sub(r'<a.*?>(.*?)</a>', '\\1', timeline[number]['text'])
+                    status = content + '「' + status + '」'
+                    repost_status_id = timeline[number]['id']
+                    self.update_status(status=status, repost_status_id=repost_status_id, format='html')
+                elif command == 'f':
+                    # 关注原
+                    if 'repost_user_id' in timeline[number]:
+                        user_id = timeline[number]['repost_user_id']
+                        user_name = timeline[number]['repost_screen_name']
+                        s, r = self.api.friendships_create(id=user_id)
+                        if s:
+                            cprint('[-] 关注 [{}] 成功'.format(user_name), 'green')
+                        else:
+                            cprint('[x] ' + r, 'red')
+                elif command == 'q':
+                    sys.exit(0)
+                else:
+                    cprint('[x] 输入有误，请重新输入', 'red')
 
     def random_view(self):
         s, timeline = self.api.public_timeline(count=20)
         if s:
             self.display_statuses(timeline)
         else:
-            print(timeline)
+            cprint('[x] ' + timeline, 'red')
 
     def save_all_statuses(self, filename):
         """
