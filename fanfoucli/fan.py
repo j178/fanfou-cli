@@ -333,9 +333,9 @@ class Fan:
         at_re = re.compile(r'@<a.*?>(.*?)</a>', re.I)
         topic_re = re.compile(r'#<a.*?>(.*?)</a>#', re.I)
         link_re = re.compile(r'<a.*?rel="nofollow" target="_blank">(.*)</a>', re.I)
-        text = at_re.sub(cstring('@\\1', color='blue'), text)
-        text = topic_re.sub(cstring('#\\1#', color='cyan'), text)
-        text = link_re.sub(cstring('\\1', 'cyan'), text)
+        text = at_re.sub(cstring(r'@\1', color='blue'), text)
+        text = topic_re.sub(cstring(r'#\1#', color='cyan'), text)
+        text = link_re.sub(cstring(r'\1', 'cyan'), text)
         return text
 
     @classmethod
@@ -404,7 +404,7 @@ class Fan:
                                        in_reply_to_status_id=reply_to_status_id, format='html')
                 elif command == 'r':
                     # 去掉返回消息中的HTML标记，因为上传的时候服务器会根据@,##等标记自动生成
-                    status = re.sub(r'<a.*?>(.*?)</a>', '\\1', timeline[number]['text'])
+                    status = re.sub(r'<a.*?>(.*?)</a>', r'\1', timeline[number]['text'])
                     status = content + '「' + status + '」'
                     repost_status_id = timeline[number]['id']
                     self.update_status(status=status, repost_status_id=repost_status_id, format='html')
