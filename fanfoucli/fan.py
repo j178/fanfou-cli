@@ -11,7 +11,6 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone, timedelta
 
 import arrow
 import requests
@@ -198,7 +197,12 @@ class API:
         if 'id' in data:
             return None, data, None
 
-    def protect(self, lock, cookie):
+    @api('POST', 'friendships', 'destroy')
+    def friendships_destroy(self, **data):
+        if 'id' in data:
+            return None, data, None
+
+    def lock(self, lock, cookie):
 
         """设置：需要我批准才能查看我的消息"""
         url = 'http://fanfou.com/settings/privacy'
@@ -209,8 +213,7 @@ class API:
         # 如果cookie失效，会返回登录页面，而不是redirect
         resp = sess.get(url)
         if '<title>登录_饭否</title>' in resp.text:
-            print('设置失败：Cookie 已失效')
-            return
+            return 'cookie_expired'
 
         token = re.search(r'<input type="hidden" name="token" value="(.+?)"', resp.text).group(1)
         data = {
@@ -223,9 +226,9 @@ class API:
 
         resp = sess.post(url, data=data, allow_redirects=False)
         if resp.status_code == 302:
-            print('设置成功')
+            return 'success'
         else:
-            print('设置失败')
+            return 'failure'
 
 
 class Fan:
@@ -359,7 +362,7 @@ class Fan:
         """浏览模式"""
 
         def get_input():
-            prompt = cstring('[-] <j> 翻页|<c 序号 xxx> 评论|<r 序号 xxx> 转发|<f 序号 xxx> 关注原PO|<q>退出 >', 'cyan')
+            prompt = cstring('[-] <j> 翻页|<c 序号 xxx> 评论|<r 序号 xxx> 转发|<f 序号> 关注原PO|<u 序号> Unfo|<q>退出 >', 'cyan')
             try:
                 key = input(prompt).strip()
                 if key == 'j':
@@ -406,7 +409,7 @@ class Fan:
                     repost_status_id = timeline[number]['id']
                     self.update_status(status=status, repost_status_id=repost_status_id, format='html')
                 elif command == 'f':
-                    # 关注原
+                    # 关注原PO
                     if 'repost_user_id' in timeline[number]:
                         user_id = timeline[number]['repost_user_id']
                         user_name = timeline[number]['repost_screen_name']
@@ -415,6 +418,14 @@ class Fan:
                             cprint('[-] 关注 [{}] 成功'.format(user_name), 'green')
                         else:
                             cprint('[x] ' + r, 'red')
+                elif command == 'u':
+                    user_id = timeline[number]['user']['id']
+                    user_name = timeline[number]['user']['screen_name']
+                    s, r = self.api.friendships_destroy(id=user_id, format='html')
+                    if s:
+                        cprint('[-] 取消关注 [{}] 成功'.format(user_name), 'green')
+                    else:
+                        cprint('[x] ' + r, 'red')
                 elif command == 'q':
                     sys.exit(0)
                 else:
@@ -427,7 +438,7 @@ class Fan:
         else:
             cprint('[x] ' + timeline, 'red')
 
-    def save_all_statuses(self, filename):
+    def dump(self, filename):
         """
         备份全部饭否消息
 
@@ -515,3 +526,26 @@ class Fan:
             print(cstring('[-] 发布成功: ', 'cyan') + r['text'] + '\n' + cstring('[-] 图片地址: ', 'cyan') + r['photo']['url'])
         else:
             cprint('[x] 发布失败: %s' % r, 'red')
+
+    def lock(self, lock):
+        cookie = self._cache.get('cookie')
+        while True:
+            if cookie:
+                s = self.api.lock(lock, cookie)
+                if s == 'success':
+                    cprint('[-] {}成功'.format('上锁' if lock else '解锁'), 'green')
+                    break
+                elif s == 'cookie_expired':
+                    pass
+                else:
+                    cprint('[x] 失败'.format('上锁' if lock else  '解锁'), 'red')
+                    break
+
+            cprint('[x] Cookie不存在或已失效', 'red')
+            try:
+                cookie = input(cstring('[+] 请重新输入>', 'cyan')).strip().strip('"')
+            except EOFError:
+                cookie = None
+                break
+        self._cache['cookie'] = cookie
+        self.save_cache()
