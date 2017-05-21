@@ -9,6 +9,7 @@ import signal
 import sys
 
 from .fan import Fan
+from . import config as cfg
 
 
 def parse_args():
@@ -24,6 +25,8 @@ def parse_args():
                         help='备份所有状态为JSON格式,输入保存文件名')
     parser.add_argument('--lock', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
     parser.add_argument('--verbose', action='store_true', help='打印日志')
+    parser.add_argument('--id', action='store_true', help='显示用户ID')
+    parser.add_argument('--time', action='store_true', help='显示时间标签')
     parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
     return parser.parse_known_args()
 
@@ -54,6 +57,8 @@ def main():
     logging.basicConfig(level=level,
                         format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
+    cfg.SHOW_ID = args.id
+    cfg.SHOW_TIME_TAG = args.time
     fan = Fan()
 
     if args.dump:

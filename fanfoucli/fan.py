@@ -343,32 +343,33 @@ class Fan:
         statuses = []
 
         for i, status in enumerate(timeline):
+            name = cstring(status['user']['name'], 'green')
+            id = ('@' + cstring(status['user']['id'], 'blue')) if cfg.SHOW_ID else ''
+            text = cls.process_status_text(status['text'])
+            created_at = arrow.get(status['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY').humanize(locale='zh')
             photo = cstring('[图]', 'green') if 'photo' in status else ''
             truncated = cstring('$', 'magenta') if status['truncated'] else ''
-            created_at = arrow.get(status['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY').humanize(locale='zh')
-            text = cls.process_status_text(status['text'])
+            time_tag = cstring('(' + created_at + ')', 'white') if cfg.SHOW_TIME_TAG else ''
             statuses.append(
-                '[{:-2}] [{}@{}] {} {} {} {}'.format(
+                '[{}] [{}{}] {} {} {} {}'.format(
                     i,
-                    cstring(status['user']['name'], 'green'),
-                    cstring(status['user']['id'], 'blue'),
+                    name,
+                    id,
                     text,
                     photo,
                     truncated,
-                    cstring('(' + created_at + ')', 'white')))
+                    time_tag))
         print('\n'.join(statuses))
 
     def view(self):
         """浏览模式"""
 
         def get_input():
-            prompt = cstring('[-] <j> 翻页|<c 序号 xxx> 评论|<r 序号 xxx> 转发|<f 序号> 关注原PO|<u 序号> Unfo|<q>退出 >', 'cyan')
+            prompt = cstring('[-] 命令(h显示帮助)>', 'cyan')
             try:
                 key = input(prompt).strip()
-                if key == 'j':
-                    return 'j', None, None
-                elif key == 'q':
-                    return 'q', None, None
+                if key in ('j', 'q', 'h'):
+                    return key, None, None
                 else:
                     keys = key.split(' ')
                     command, number, *content = keys
@@ -396,6 +397,13 @@ class Fan:
                 command, number, content = get_input()
                 if command == 'j':
                     break
+                elif command == 'h':
+                    print(cstring('<j>', 'cyan') + ' 翻页 \n' +
+                          cstring('<c 序号 xxx>', 'cyan') + ' 评论\n' +
+                          cstring('<r 序号 xxx>', 'cyan') + ' 转发\n' +
+                          cstring('<f 序号>', 'cyan') + ' 关注原PO\n' +
+                          cstring('<u 序号>', 'cyan') + ' 取消关注\n' +
+                          cstring('<q>', 'cyan') + ' 退出')
                 elif command == 'c':
                     status = '@' + timeline[number]['user']['screen_name'] + ' ' + content
                     reply_to_user_id = timeline[number]['user']['id']

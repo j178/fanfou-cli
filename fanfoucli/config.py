@@ -18,3 +18,5 @@ REDIRECT_URI = 'https://my.nigel.top/callback'
 
 API_URL = 'http://api.fanfou.com/{}/{}.json'
 
+SHOW_ID = False
+SHOW_TIME_TAG = False
