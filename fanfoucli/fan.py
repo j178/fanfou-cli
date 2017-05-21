@@ -258,7 +258,7 @@ class Fan:
     def me(self):
         s, me = self.api.users_show()
         if s:
-            self._cache['my_latest_status'] = me.pop('status')
+            self._cache['latest_status'] = me.pop('status')
             self._cache['me'] = me
             self.save_cache()
 
@@ -365,7 +365,7 @@ class Fan:
         """浏览模式"""
 
         def get_input():
-            prompt = cstring('[-] 命令(h显示帮助)>', 'cyan')
+            prompt = cstring('[-] 输入命令(h显示帮助)>', 'cyan')
             try:
                 key = input(prompt).strip()
                 if key in ('j', 'q', 'h'):

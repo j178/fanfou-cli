@@ -20,3 +20,4 @@ API_URL = 'http://api.fanfou.com/{}/{}.json'
 
 SHOW_ID = False
 SHOW_TIME_TAG = False
+AUTO_CLEAR = False

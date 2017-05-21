@@ -7,6 +7,8 @@ import argparse
 import logging
 import signal
 import sys
+import atexit
+import os
 
 from .fan import Fan
 from . import config as cfg
@@ -27,6 +29,7 @@ def parse_args():
     parser.add_argument('--verbose', action='store_true', help='打印日志')
     parser.add_argument('--id', action='store_true', help='显示用户ID')
     parser.add_argument('--time', action='store_true', help='显示时间标签')
+    parser.add_argument('--clear', action='store_true', help='浏览完成后自动清屏')
     parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
     return parser.parse_known_args()
 
@@ -41,6 +44,11 @@ def handler(signal, frame):
     sys.exit(0)
 
 
+def clear_screen():
+    if cfg.AUTO_CLEAR:
+        print('\n' * 100)
+
+
 def read_from_stdin():
     try:
         return sys.stdin.buffer.read().decode('utf8')
@@ -51,6 +59,7 @@ def read_from_stdin():
 
 def main():
     signal.signal(signal.SIGINT, handler)
+    atexit.register(clear_screen)
 
     args, unknown = parse_args()
     level = logging.DEBUG if args.verbose  else logging.INFO
@@ -59,6 +68,7 @@ def main():
                         datefmt='%Y-%m-%d %H:%M:%S')
     cfg.SHOW_ID = args.id
     cfg.SHOW_TIME_TAG = args.time
+    cfg.AUTO_CLEAR = args.clear
     fan = Fan()
 
     if args.dump:
