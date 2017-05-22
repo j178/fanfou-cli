@@ -67,7 +67,7 @@ def main():
     fan = Fan()
 
     if args.dump:
-        fan.dump(args.save_all_statuses)
+        fan.dump(args.dump)
     elif args.revert:
         fan.revert()
     elif args.lock is not None:
