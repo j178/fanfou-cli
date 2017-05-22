@@ -27,13 +27,13 @@ class TokenHandler(BaseHTTPRequestHandler):
         if 'callback?oauth_token=' in self.path:
             cfg.authorization_response = cfg.REDIRECT_URI + self.path
             self.send_response(200)
-            self.send_header('Content-type', 'text/html')
+            self.send_header('Content-type', 'text/html; charset=utf-8')
             self.end_headers()
             self.wfile.write("<h1>授权成功</h1>".encode('utf8'))
             self.wfile.write('<p>快去刷饭吧~</p>'.encode('utf8'))
         else:
             self.send_response(403)
-            self.send_header('Content-type', 'text/html')
+            self.send_header('Content-type', 'text/html; charset=utf-8')
             self.wfile.write('<h1>参数错误！</h1>'.encode('utf8'))
 
 
@@ -386,7 +386,6 @@ class Fan:
 
             while True:
                 command, number, content = get_input()
-                status = timeline[number]
                 if command == 'j':
                     if cfg.AUTO_CLEAR:
                         clear_screen()
@@ -399,6 +398,7 @@ class Fan:
                           cstring('<u 序号>', 'cyan') + ' 取消关注\n' +
                           cstring('<q>', 'cyan') + ' 退出')
                 elif command == 'c':
+                    status = timeline[number]
                     text = '@' + status['user']['screen_name'] + ' ' + content
                     reply_to_user_id = status['user']['id']
                     reply_to_status_id = status['id']
@@ -406,12 +406,14 @@ class Fan:
                                        in_reply_to_status_id=reply_to_status_id, format='html')
                 elif command == 'r':
                     # 去掉返回消息中的HTML标记，因为上传的时候服务器会根据@,##等标记自动生成
+                    status = timeline[number]
                     text = re.sub(r'<a.*?>(.*?)</a>', r'\1', status['text'])
                     text = content + '「' + text + '」'
                     repost_status_id = status['id']
                     self.update_status(status=text, repost_status_id=repost_status_id, format='html')
                 elif command == 'f':
                     # 关注原PO
+                    status = timeline[number]
                     if 'repost_user_id' in status:
                         user_id = status['repost_user_id']
                         user_name = status['repost_screen_name']
@@ -421,6 +423,7 @@ class Fan:
                         else:
                             cprint('[x] ' + r, 'red')
                 elif command == 'u':
+                    status = timeline[number]
                     user_id = status['user']['id']
                     user_name = status['user']['screen_name']
                     s, r = self.api.friendships_destroy(id=user_id, format='html')
