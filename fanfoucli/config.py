@@ -14,7 +14,7 @@ REQUEST_TOKEN_URL = OAUTH_URL + 'request_token'
 AUTHORIZE_URL = OAUTH_URL + 'authorize'
 ACCESS_TOKEN_URL = OAUTH_URL + 'access_token'
 
-REDIRECT_URI = 'https://my.nigel.top/callback'
+REDIRECT_URI = 'http://localhost:8000/callback'
 
 API_URL = 'http://api.fanfou.com/{}/{}.json'
 

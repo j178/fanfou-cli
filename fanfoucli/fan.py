@@ -17,60 +17,37 @@ import requests
 from requests_oauthlib import OAuth1Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
+from . import cstring, cprint, get_input, open_in_browser, clear_screen
 from . import config as cfg
-
-ATTRIBUTES = {
-    'bold': 1,
-    'dark': 2,
-    'underline': 4,
-    'blink': 5,
-    'reverse': 7,
-    'concealed': 8
-}
-
-HIGHLIGHTS = {
-    'on_grey': 40,
-    'on_red': 41,
-    'on_green': 42,
-    'on_yellow': 43,
-    'on_blue': 44,
-    'on_magenta': 45,
-    'on_cyan': 46,
-    'on_white': 47
-}
-
-COLORS = {
-    'grey': 30,
-    'red': 31,
-    'green': 32,
-    'yellow': 33,
-    'blue': 34,
-    'magenta': 35,
-    'cyan': 36,
-    'white': 37,
-}
-RESET = '\033[0m'
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
-def cstring(text, color=None, on_color=None, attrs=None, **kwargs):
-    fmt_str = '\033[%dm%s'
-    if color is not None:
-        text = fmt_str % (COLORS[color], text)
+class TokenHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if 'callback?oauth_token=' in self.path:
+            cfg.authorization_response = cfg.REDIRECT_URI + self.path
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write("<h1>授权成功</h1>".encode('utf8'))
+            self.wfile.write('<p>快去刷饭吧~</p>'.encode('utf8'))
+        else:
+            self.send_response(403)
+            self.send_header('Content-type', 'text/html')
+            self.wfile.write('<h1>参数错误！</h1>'.encode('utf8'))
 
-    if on_color is not None:
-        text = fmt_str % (HIGHLIGHTS[on_color], text)
 
-    if attrs is not None:
-        for attr in attrs:
-            text = fmt_str % (ATTRIBUTES[attr], text)
-
-    text += RESET
-    return text
-
-
-def cprint(text, color=None, on_color=None, attrs=None, **kwargs):
-    text = cstring(text, color, on_color, attrs)
-    print(text, **kwargs)
+def start_token_server():
+    server_address = ('127.0.0.1', 8000)
+    with HTTPServer(server_address, TokenHandler) as httpd:
+        sa = httpd.socket.getsockname()
+        serve_message = cstring("[-] 已在本地启动HTTP服务器，等待饭否君的到来 (http://{host}:{port}/) ...", 'cyan')
+        print(serve_message.format(host=sa[0], port=sa[1]))
+        try:
+            httpd.handle_request()
+        except KeyboardInterrupt:
+            print("\nKeyboard interrupt received, exiting.")
+            sys.exit(0)
 
 
 def api(method, category, action):
@@ -92,6 +69,7 @@ def api(method, category, action):
                 if failure >= 3:
                     cprint('[x] 网络请求失败', color='red')
                     sys.exit(1)
+                time.sleep(1)
             j = result.json()
             if result.status_code == 200:
                 return True, j
@@ -115,18 +93,29 @@ class API:
         try:
             self.session.fetch_request_token(request_token_url)
             authorization_url = self.session.authorization_url(authorize_url, callback_uri=callback_uri)
-            cprint('[-] 请在浏览器中打开此网址: ', color='cyan')
-            print(authorization_url)
 
-            redirect_resp = input(cstring('[-] 请将跳转后的网站粘贴到这里: ', color='cyan')).strip()
-            self.session.parse_authorization_response(redirect_resp)
-            # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
-            access_token = self.session.fetch_access_token(access_token_url, verifier='123')
-            cprint('[+] 授权完成，可以愉快地发饭啦！', color='green')
-        except TokenRequestDenied as e:
+            cprint('[-] 初次使用，此工具需要你的授权才能工作/_\\', 'cyan')
+            if get_input(cstring('[-] 是否自动在浏览器中打开授权链接(y/n)>', 'cyan')) == 'y':
+                open_in_browser(authorization_url)
+            else:
+                cprint('[-] 请在浏览器中打开此链接: ', color='cyan')
+                print(authorization_url)
+
+            start_token_server()
+
+            if hasattr(cfg, 'authorization_response'):
+                # redirect_resp = input(cstring('[-] 请将跳转后的网站粘贴到这里: ', color='cyan')).strip()
+                self.session.parse_authorization_response(cfg.authorization_response)
+                # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
+                access_token = self.session.fetch_access_token(access_token_url, verifier='123')
+                cprint('[+] 授权完成，可以愉快地发饭啦！', color='green')
+                return access_token
+            else:
+                cprint('[x] 授权失败!', 'red')
+                sys.exit(1)
+        except TokenRequestDenied:
             cprint('[x] 授权失败，请检查本地时间与网络时间是否同步', color='red')
             sys.exit(1)
-        return access_token
 
     @api('GET', 'account', 'verify_credentials')
     def verify_credentials(self, **params):
@@ -240,7 +229,7 @@ class Fan:
                        request_token_url=cfg.REQUEST_TOKEN_URL,
                        authorize_url=cfg.AUTHORIZE_URL,
                        access_token_url=cfg.ACCESS_TOKEN_URL,
-                       callback_uri='http://u.nigel.top',
+                       callback_uri=cfg.REDIRECT_URI,
                        api_url=cfg.API_URL)
         self._cache['access_token'] = self.api.access_token
         self.save_cache()
@@ -397,7 +386,7 @@ class Fan:
                 command, number, content = get_input()
                 if command == 'j':
                     if cfg.AUTO_CLEAR:
-                        print('\n' * 100)
+                        clear_screen()
                     break
                 elif command == 'h':
                     print(cstring('<j>', 'cyan') + ' 翻页 \n' +

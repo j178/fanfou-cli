@@ -4,14 +4,14 @@
 # Date  : 2016/8/29
 
 import argparse
+import atexit
 import logging
 import signal
 import sys
-import atexit
-import os
 
-from .fan import Fan
+from . import clear_screen, open_in_browser
 from . import config as cfg
+from .fan import Fan
 
 
 def parse_args():
@@ -34,19 +34,9 @@ def parse_args():
     return parser.parse_known_args()
 
 
-def open_fanfou():
-    import webbrowser
-    webbrowser.open_new_tab('http://fanfou.com')
-
-
 def handler(signal, frame):
     print('\nBye!')
     sys.exit(0)
-
-
-def clear_screen():
-    if cfg.AUTO_CLEAR:
-        print('\n' * 100)
 
 
 def read_from_stdin():
@@ -57,14 +47,19 @@ def read_from_stdin():
         sys.exit(1)
 
 
+def clear_screen_handler():
+    if cfg.AUTO_CLEAR:
+        clear_screen()
+
+
 def main():
     signal.signal(signal.SIGINT, handler)
-    atexit.register(clear_screen)
+    atexit.register(clear_screen_handler)
 
     args, unknown = parse_args()
     level = logging.DEBUG if args.verbose  else logging.INFO
     logging.basicConfig(level=level,
-                        format='%(asctime)s [%(module)14s] [line:%(lineno)4d] [%(levelname)s] %(message)s',
+                        format='%(asctime)s [%(levelname)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
     cfg.SHOW_ID = args.id
     cfg.SHOW_TIME_TAG = args.time
@@ -108,7 +103,7 @@ def main():
         elif unknown:  # fan anything
             status = ' '.join(unknown)
         elif not args.image:
-            open_fanfou()
+            open_in_browser('http://fanfou.com')
             return
         # 发图片
         if args.image:
