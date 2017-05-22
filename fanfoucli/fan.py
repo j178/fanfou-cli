@@ -11,15 +11,15 @@ import os
 import re
 import sys
 import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import arrow
 import requests
 from requests_oauthlib import OAuth1Session
 from requests_oauthlib.oauth1_session import TokenRequestDenied
 
-from . import cstring, cprint, get_input, open_in_browser, clear_screen
 from . import config as cfg
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from . import cstring, cprint, get_input, open_in_browser, clear_screen
 
 
 class TokenHandler(BaseHTTPRequestHandler):
@@ -39,15 +39,16 @@ class TokenHandler(BaseHTTPRequestHandler):
 
 def start_token_server():
     server_address = ('127.0.0.1', 8000)
-    with HTTPServer(server_address, TokenHandler) as httpd:
-        sa = httpd.socket.getsockname()
-        serve_message = cstring("[-] 已在本地启动HTTP服务器，等待饭否君的到来 (http://{host}:{port}/) ...", 'cyan')
-        print(serve_message.format(host=sa[0], port=sa[1]))
-        try:
-            httpd.handle_request()
-        except KeyboardInterrupt:
-            print("\nKeyboard interrupt received, exiting.")
-            sys.exit(0)
+    httpd = HTTPServer(server_address, TokenHandler)
+    sa = httpd.socket.getsockname()
+    serve_message = cstring("[-] 已在本地启动HTTP服务器，等待饭否君的到来 (http://{host}:{port}/) ...", 'cyan')
+    print(serve_message.format(host=sa[0], port=sa[1]))
+    try:
+        httpd.handle_request()
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received, exiting.")
+        sys.exit(0)
+    httpd.server_close()
 
 
 def api(method, category, action):
@@ -220,6 +221,7 @@ class API:
             return 'failure'
 
 
+# noinspection PyTupleAssignmentBalance
 class Fan:
     def __init__(self):
         self._cache = self.load_cache(cfg.CACHE_FILE) or {}
@@ -340,14 +342,14 @@ class Fan:
             truncated = cstring('$', 'magenta') if status['truncated'] else ''
             time_tag = cstring('(' + created_at + ')', 'white') if cfg.SHOW_TIME_TAG else ''
             statuses.append(
-                '[{}] [{}{}] {} {} {} {}'.format(
-                    i,
-                    name,
-                    id,
-                    text,
-                    photo,
-                    truncated,
-                    time_tag))
+                '[{seq}] [{name}{id}] {text} {photo} {truncated} {time_tag}'.format(
+                    seq=i,
+                    name=name,
+                    id=id,
+                    text=text,
+                    photo=photo,
+                    truncated=truncated,
+                    time_tag=time_tag))
         print('\n'.join(statuses))
 
     def view(self):
@@ -384,6 +386,7 @@ class Fan:
 
             while True:
                 command, number, content = get_input()
+                status = timeline[number]
                 if command == 'j':
                     if cfg.AUTO_CLEAR:
                         clear_screen()
@@ -396,30 +399,30 @@ class Fan:
                           cstring('<u 序号>', 'cyan') + ' 取消关注\n' +
                           cstring('<q>', 'cyan') + ' 退出')
                 elif command == 'c':
-                    status = '@' + timeline[number]['user']['screen_name'] + ' ' + content
-                    reply_to_user_id = timeline[number]['user']['id']
-                    reply_to_status_id = timeline[number]['id']
-                    self.update_status(status=status, in_reply_to_user_id=reply_to_user_id,
+                    text = '@' + status['user']['screen_name'] + ' ' + content
+                    reply_to_user_id = status['user']['id']
+                    reply_to_status_id = status['id']
+                    self.update_status(status=text, in_reply_to_user_id=reply_to_user_id,
                                        in_reply_to_status_id=reply_to_status_id, format='html')
                 elif command == 'r':
                     # 去掉返回消息中的HTML标记，因为上传的时候服务器会根据@,##等标记自动生成
-                    status = re.sub(r'<a.*?>(.*?)</a>', r'\1', timeline[number]['text'])
-                    status = content + '「' + status + '」'
-                    repost_status_id = timeline[number]['id']
-                    self.update_status(status=status, repost_status_id=repost_status_id, format='html')
+                    text = re.sub(r'<a.*?>(.*?)</a>', r'\1', status['text'])
+                    text = content + '「' + text + '」'
+                    repost_status_id = status['id']
+                    self.update_status(status=text, repost_status_id=repost_status_id, format='html')
                 elif command == 'f':
                     # 关注原PO
-                    if 'repost_user_id' in timeline[number]:
-                        user_id = timeline[number]['repost_user_id']
-                        user_name = timeline[number]['repost_screen_name']
+                    if 'repost_user_id' in status:
+                        user_id = status['repost_user_id']
+                        user_name = status['repost_screen_name']
                         s, r = self.api.friendships_create(id=user_id)
                         if s:
                             cprint('[-] 关注 [{}] 成功'.format(user_name), 'green')
                         else:
                             cprint('[x] ' + r, 'red')
                 elif command == 'u':
-                    user_id = timeline[number]['user']['id']
-                    user_name = timeline[number]['user']['screen_name']
+                    user_id = status['user']['id']
+                    user_name = status['user']['screen_name']
                     s, r = self.api.friendships_destroy(id=user_id, format='html')
                     if s:
                         cprint('[-] 取消关注 [{}] 成功'.format(user_name), 'green')
