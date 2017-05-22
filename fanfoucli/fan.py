@@ -396,6 +396,8 @@ class Fan:
             while True:
                 command, number, content = get_input()
                 if command == 'j':
+                    if cfg.AUTO_CLEAR:
+                        print('\n' * 100)
                     break
                 elif command == 'h':
                     print(cstring('<j>', 'cyan') + ' 翻页 \n' +
