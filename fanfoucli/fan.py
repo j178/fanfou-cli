@@ -169,7 +169,7 @@ class API:
     def photo_upload(self, photo_data, **data):
         """发布带图片状态"""
         # {name : (filename, filedata, content_type, {headers})}
-        file = {'photo': ('photo-from-fanfou-cli.png', photo_data)}
+        file = {'photo': ('photo', photo_data, 'application/octet-stream')}
         return None, data, file
 
     @api('GET', 'users', 'show')
@@ -223,7 +223,7 @@ class API:
 
 # noinspection PyTupleAssignmentBalance
 class Fan:
-    def __init__(self):
+    def __init__(self, access_token=None):
         self._cache = self.load_cache(cfg.CACHE_FILE) or {}
 
         access_token = self._cache.get('access_token')
@@ -289,7 +289,7 @@ class Fan:
         url = user['url']
 
         created_at = arrow.get(user['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY')
-        created_days = (arrow.now(tz='+08:00') - created_at).days
+        created_days = (arrow.now(tz='+08:00') - created_at).days + 1
         followers_count = user['followers_count']
         friends_count = user['friends_count']
         statuses_count = user['statuses_count']
@@ -519,7 +519,7 @@ class Fan:
                 url = image.strip('\'').strip('"')
                 resp = requests.get(url)
                 resp.raise_for_status()
-                if not resp.headers.get('Content-Type', '').startswith('image/'):
+                if not resp.headers.get('Content-Type', '').lower().startswith('image/'):
                     cprint('[x] 提供的URL不是图片URL', 'red')
                     return
                 data = io.BytesIO(resp.content)
