@@ -254,6 +254,9 @@ class Fan:
             self.save_cache()
 
             self.display_user(me)
+            return True
+        else:
+            cprint('[x] ' + me, 'red')
 
     def update_status(self, status, **params):
         s, r = self.api.statuses_update(status=status, mode='lite', **params)
@@ -262,6 +265,7 @@ class Fan:
             self._cache['my_latest_status'] = r
             self.save_cache()
             print(cstring('[-] 发布成功:', color='green'), self.process_status_text(r['text']))
+            return True
         else:
             cprint('[x] 发布失败: %s' % r, color='red')
 
@@ -275,7 +279,7 @@ class Fan:
             self.save_cache()
             if s:
                 cprint('[-] 撤回成功: %s' % info['text'], color='green')
-                return
+                return True
             error = info
         cprint('[x] 撤回失败: %s' % error, color='red')
 
@@ -521,14 +525,15 @@ class Fan:
                 resp.raise_for_status()
                 if not resp.headers.get('Content-Type', '').lower().startswith('image/'):
                     cprint('[x] 提供的URL不是图片URL', 'red')
-                    return
+                    return False
                 data = io.BytesIO(resp.content)
                 s, r = self.api.photo_upload(data, status=status)
             except requests.RequestException as e:
                 cprint('[x] 获取网络图片出错', 'red')
-                return
+                return False
         if s:
             print(cstring('[-] 发布成功: ', 'cyan') + r['text'] + '\n' + cstring('[-] 图片地址: ', 'cyan') + r['photo']['url'])
+            return True
         else:
             cprint('[x] 发布失败: %s' % r, 'red')
 
@@ -539,7 +544,7 @@ class Fan:
                 s = self.api.lock(lock, cookie)
                 if s == 'success':
                     cprint('[-] {}成功'.format('上锁' if lock else '解锁'), 'green')
-                    break
+                    return True
                 elif s == 'cookie_expired':
                     pass
                 else:
