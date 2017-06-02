@@ -16,39 +16,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import arrow
 import requests
 from requests_oauthlib import OAuth1Session
-from requests_oauthlib.oauth1_session import TokenRequestDenied
 
-from . import config as cfg
 from . import cstring, cprint, get_input, open_in_browser, clear_screen
-
-
-class TokenHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if 'callback?oauth_token=' in self.path:
-            cfg.authorization_response = cfg.REDIRECT_URI + self.path
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.end_headers()
-            self.wfile.write("<h1>授权成功</h1>".encode('utf8'))
-            self.wfile.write('<p>快去刷饭吧~</p>'.encode('utf8'))
-        else:
-            self.send_response(403)
-            self.send_header('Content-type', 'text/html; charset=utf-8')
-            self.wfile.write('<h1>参数错误！</h1>'.encode('utf8'))
-
-
-def start_token_server():
-    server_address = ('127.0.0.1', 8000)
-    httpd = HTTPServer(server_address, TokenHandler)
-    sa = httpd.socket.getsockname()
-    serve_message = cstring("[-] 已在本地启动HTTP服务器，等待饭否君的到来 (http://{host}:{port}/) ...", 'cyan')
-    print(serve_message.format(host=sa[0], port=sa[1]))
-    try:
-        httpd.handle_request()
-    except KeyboardInterrupt:
-        print("\nKeyboard interrupt received, exiting.")
-        sys.exit(0)
-    httpd.server_close()
 
 
 def api(method, category, action):
@@ -82,41 +51,13 @@ def api(method, category, action):
 
 
 class API:
-    def __init__(self, consumer_key, consumer_secret, access_token=None, **urls):
-        self.api_url = urls.pop('api_url')
+    def __init__(self, consumer_key, consumer_secret, api_url, access_token):
         self.consumer_key = consumer_key
         self.consumer_secret = consumer_secret
+        self.access_token = access_token
+        self.api_url = api_url
         self.session = OAuth1Session(consumer_key, consumer_secret)
-        self.access_token = access_token or self.auth(**urls)
         self.session._populate_attributes(self.access_token)
-
-    def auth(self, request_token_url, authorize_url, access_token_url, callback_uri):
-        try:
-            self.session.fetch_request_token(request_token_url)
-            authorization_url = self.session.authorization_url(authorize_url, callback_uri=callback_uri)
-
-            cprint('[-] 初次使用，此工具需要你的授权才能工作/_\\', 'cyan')
-            if get_input(cstring('[-] 是否自动在浏览器中打开授权链接(y/n)>', 'cyan')) == 'y':
-                open_in_browser(authorization_url)
-            else:
-                cprint('[-] 请在浏览器中打开此链接: ', color='cyan')
-                print(authorization_url)
-
-            start_token_server()
-
-            if hasattr(cfg, 'authorization_response'):
-                # redirect_resp = input(cstring('[-] 请将跳转后的网站粘贴到这里: ', color='cyan')).strip()
-                self.session.parse_authorization_response(cfg.authorization_response)
-                # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
-                access_token = self.session.fetch_access_token(access_token_url, verifier='123')
-                cprint('[+] 授权完成，可以愉快地发饭啦！', color='green')
-                return access_token
-            else:
-                cprint('[x] 授权失败!', 'red')
-                sys.exit(1)
-        except TokenRequestDenied:
-            cprint('[x] 授权失败，请检查本地时间与网络时间是否同步', color='red')
-            sys.exit(1)
 
     @api('GET', 'account', 'verify_credentials')
     def verify_credentials(self, **params):
@@ -169,8 +110,9 @@ class API:
     def photo_upload(self, photo_data, **data):
         """发布带图片状态"""
         # {name : (filename, filedata, content_type, {headers})}
-        file = {'photo': ('photo', photo_data, 'application/octet-stream')}
-        return None, data, file
+        file = {'photo': ('photo', photo_data, 'application/octet-stream'),
+                'status': ('', data.get('status', ''), 'text/plain')}
+        return None, None, file
 
     @api('GET', 'users', 'show')
     def users_show(self, **params):
@@ -223,36 +165,20 @@ class API:
 
 # noinspection PyTupleAssignmentBalance
 class Fan:
-    def __init__(self, access_token=None):
-        self._cache = self.load_cache(cfg.CACHE_FILE) or {}
-
-        access_token = self._cache.get('access_token')
-        self.api = API(cfg.CONSUMER_KEY, cfg.CONSUMER_SECRET, access_token,
-                       request_token_url=cfg.REQUEST_TOKEN_URL,
-                       authorize_url=cfg.AUTHORIZE_URL,
-                       access_token_url=cfg.ACCESS_TOKEN_URL,
-                       callback_uri=cfg.REDIRECT_URI,
-                       api_url=cfg.API_URL)
-        self._cache['access_token'] = self.api.access_token
-        self.save_cache()
-
-    @staticmethod
-    def load_cache(cache_file):
-        if os.path.isfile(cache_file):
-            with open(cfg.CACHE_FILE, encoding='utf8') as f:
-                return json.load(f)
-
-    def save_cache(self):
-        with open(cfg.CACHE_FILE, 'w', encoding='utf8') as f:
-            json.dump(self._cache, f, ensure_ascii=False, indent=2, sort_keys=True)
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.api = API(cfg.consumer_key,
+                       cfg.consumer_secret,
+                       cfg.API_URL,
+                       cfg.access_token)
+        if self.cfg.current_username == self.cfg.UNDEFINED_USERNAME:
+            s, me = self.api.users_show()
+            if s:
+                self.cfg.current_username = me['id']
 
     def me(self):
         s, me = self.api.users_show()
         if s:
-            self._cache['latest_status'] = me.pop('status')
-            self._cache['me'] = me
-            self.save_cache()
-
             self.display_user(me)
             return True
         else:
@@ -261,9 +187,6 @@ class Fan:
     def update_status(self, status, **params):
         s, r = self.api.statuses_update(status=status, mode='lite', **params)
         if s:
-            self._cache['me'] = r.pop('user')
-            self._cache['my_latest_status'] = r
-            self.save_cache()
             print(cstring('[-] 发布成功:', color='green'), self.process_status_text(r['text']))
             return True
         else:
@@ -275,8 +198,6 @@ class Fan:
         if s:
             id = latest[0]['id']
             s, info = self.api.statuses_destroy(id=id)
-            self._cache['me'] = info['user']
-            self.save_cache()
             if s:
                 cprint('[-] 撤回成功: %s' % info['text'], color='green')
                 return True
@@ -333,18 +254,17 @@ class Fan:
         text = link_re.sub(cstring(r'\1', 'cyan'), text)
         return text
 
-    @classmethod
-    def display_statuses(cls, timeline):
+    def display_statuses(self, timeline):
         statuses = []
 
         for i, status in enumerate(timeline):
             name = cstring(status['user']['name'], 'green')
-            id = ('@' + cstring(status['user']['id'], 'blue')) if cfg.SHOW_ID else ''
-            text = cls.process_status_text(status['text'])
+            id = ('@' + cstring(status['user']['id'], 'blue')) if self.cfg.show_id else ''
+            text = self.process_status_text(status['text'])
             created_at = arrow.get(status['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY').humanize(locale='zh')
             photo = cstring('[图]', 'green') if 'photo' in status else ''
             truncated = cstring('$', 'magenta') if status['truncated'] else ''
-            time_tag = cstring('(' + created_at + ')', 'white') if cfg.SHOW_TIME_TAG else ''
+            time_tag = cstring('(' + created_at + ')', 'white') if self.cfg.show_time_tag else ''
             statuses.append(
                 '[{seq}] [{name}{id}] {text} {photo} {truncated} {time_tag}'.format(
                     seq=i,
@@ -363,7 +283,7 @@ class Fan:
             prompt = cstring('[-] 输入命令(h显示帮助)>', 'cyan')
             try:
                 key = input(prompt).strip()
-                if key in ('j', 'q', 'h'):
+                if key in ('j', 'q', 'h', 'x'):
                     return key, None, None
                 else:
                     keys = key.split(' ')
@@ -381,7 +301,8 @@ class Fan:
 
         max_id = None
         while True:
-            s, timeline = self.api.home_timeline(count=10, max_id=max_id, format='html', mode='lite')
+            s, timeline = self.api.home_timeline(count=self.cfg.timeline_count, max_id=max_id, format='html',
+                                                 mode='lite')
             if not s:
                 cprint('[x] ' + timeline, 'red')
                 break
@@ -391,16 +312,22 @@ class Fan:
             while True:
                 command, number, content = get_input()
                 if command == 'j':
-                    if cfg.AUTO_CLEAR:
+                    if self.cfg.auto_clear:
                         clear_screen()
                     break
                 elif command == 'h':
-                    print(cstring('<j>', 'cyan') + ' 翻页 \n' +
+                    print(cstring('<j>', 'cyan') + ' 下一页\n' +
+                          cstring('<x>', 'cyan') + ' 刷新\n' +
                           cstring('<c 序号 xxx>', 'cyan') + ' 评论\n' +
                           cstring('<r 序号 xxx>', 'cyan') + ' 转发\n' +
                           cstring('<f 序号>', 'cyan') + ' 关注原PO\n' +
                           cstring('<u 序号>', 'cyan') + ' 取消关注\n' +
                           cstring('<q>', 'cyan') + ' 退出')
+                elif command == 'x':
+                    if self.cfg.auto_clear:
+                        clear_screen()
+                    max_id = None
+                    break
                 elif command == 'c':
                     status = timeline[number]
                     text = '@' + status['user']['screen_name'] + ' ' + content
@@ -441,7 +368,7 @@ class Fan:
                     cprint('[x] 输入有误，请重新输入', 'red')
 
     def random_view(self):
-        s, timeline = self.api.public_timeline(count=20)
+        s, timeline = self.api.public_timeline(count=self.cfg.timeline_count)
         if s:
             self.display_statuses(timeline)
         else:
@@ -538,7 +465,7 @@ class Fan:
             cprint('[x] 发布失败: %s' % r, 'red')
 
     def lock(self, lock):
-        cookie = self._cache.get('cookie')
+        cookie = self.cfg.cookie
         while True:
             if cookie:
                 s = self.api.lock(lock, cookie)
@@ -551,11 +478,4 @@ class Fan:
                     cprint('[x] 失败'.format('上锁' if lock else  '解锁'), 'red')
                     break
 
-            cprint('[x] Cookie不存在或已失效', 'red')
-            try:
-                cookie = input(cstring('[+] 请重新输入>', 'cyan')).strip().strip('"')
-            except EOFError:
-                cookie = None
-                break
-        self._cache['cookie'] = cookie
-        self.save_cache()
+            cookie = self.cfg.cookie

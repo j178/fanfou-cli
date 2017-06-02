@@ -10,27 +10,32 @@ import signal
 import sys
 
 from . import clear_screen, open_in_browser
-from . import config as cfg
+from .config import cfg
 from .fan import Fan
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
-    parser.add_argument('-i', '--image', help='添加图片')
-    parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
-    parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
-    parser.add_argument('-u', '--user', help='查看他人信息')
-    parser.add_argument('-v', '--view', action='store_true', help='浏览模式')
-    parser.add_argument('-d', '--random', action='store_true', help='随便看看')
-    parser.add_argument('--dump', metavar='FILENAME', nargs='?', const='timeline.json',
-                        help='备份所有状态为JSON格式,输入保存文件名')
-    parser.add_argument('--lock', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
-    parser.add_argument('--verbose', action='store_true', help='打印日志')
-    parser.add_argument('--id', action='store_true', help='显示用户ID')
-    parser.add_argument('--time', action='store_true', help='显示时间标签')
-    parser.add_argument('--clear', action='store_true', help='浏览完成后自动清屏')
-    parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
+    command_parser = parser.add_argument_group('命令')
+    command_parser.add_argument('-n', '--new', metavar='X', nargs='*', help='发布新的状态')
+    command_parser.add_argument('-i', '--image', help='添加图片')
+    command_parser.add_argument('-r', '--revert', action='store_true', help='撤回前一条消息')
+    command_parser.add_argument('-m', '--me', action='store_true', help='查看个人信息')
+    command_parser.add_argument('-u', '--user', metavar='ID', help='查看他人信息，参数为用户ID')
+    command_parser.add_argument('-v', '--view', action='store_true', help='浏览模式')
+    command_parser.add_argument('-d', '--random', action='store_true', help='随便看看')
+    command_parser.add_argument('--dump', metavar='FILE', nargs='?', const='timeline.json',
+                                help='备份所有状态，保存到 FILE 文件中(JSON格式)')
+    command_parser.add_argument('--lock', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
+
+    option_parser = parser.add_argument_group('选项')
+    option_parser.add_argument('--verbose', action='store_true', help='打印日志')
+    option_parser.add_argument('--id', dest='show_id', action='store_true', help='显示用户ID')
+    option_parser.add_argument('--time', dest='show_time_tag', action='store_true', help='显示时间标签')
+    option_parser.add_argument('--clear', dest='auto_clear', action='store_true', help='浏览完成后自动清屏')
+    option_parser.add_argument('--auto-auth', dest='auto_auth', action='store_true', help='自动验证')
+    option_parser.add_argument('--count', dest='timeline_count', type=int, help='时间线显示消息的数量')
+    option_parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
     return parser.parse_known_args()
 
 
@@ -48,8 +53,16 @@ def read_from_stdin():
 
 
 def clear_screen_handler():
-    if cfg.AUTO_CLEAR:
+    if cfg.auto_clear:
         clear_screen()
+
+
+def populate_cfg(args):
+    cfg.show_id = args.show_id if args.show_id is not None else cfg.show_id
+    cfg.show_time_tag = args.show_time_tag if args.show_time_tag is not None else cfg.show_time_tag
+    cfg.auto_clear = args.auto_clear if args.auto_clear is not None else cfg.auto_clear
+    cfg.auto_auth = args.auto_auth if args.auto_auth is not None else cfg.auto_auth
+    cfg.timeline_count = args.timeline_count if args.timeline_count is not None else cfg.timeline_count
 
 
 def main():
@@ -61,10 +74,9 @@ def main():
     logging.basicConfig(level=level,
                         format='%(asctime)s [%(levelname)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    cfg.SHOW_ID = args.id
-    cfg.SHOW_TIME_TAG = args.time
-    cfg.AUTO_CLEAR = args.clear
-    fan = Fan()
+
+    populate_cfg(args)
+    fan = Fan(cfg)
 
     if args.dump:
         fan.dump(args.dump)
