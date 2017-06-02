@@ -363,7 +363,7 @@ class Fan:
             prompt = cstring('[-] 输入命令(h显示帮助)>', 'cyan')
             try:
                 key = input(prompt).strip()
-                if key in ('j', 'q', 'h'):
+                if key in ('j', 'k', 'q', 'h'):
                     return key, None, None
                 else:
                     keys = key.split(' ')
@@ -380,12 +380,14 @@ class Fan:
                 return None, None, None
 
         max_id = None
+        min_id = None
         while True:
             s, timeline = self.api.home_timeline(count=10, max_id=max_id, format='html', mode='lite')
             if not s:
                 cprint('[x] ' + timeline, 'red')
                 break
             max_id = timeline[-1]['id']
+            min_id = timeline[0]['id']
             self.display_statuses(timeline)
 
             while True:
@@ -394,8 +396,14 @@ class Fan:
                     if cfg.AUTO_CLEAR:
                         clear_screen()
                     break
+                elif command == 'k':
+                    if cfg.AUTO_CLEAR:
+                        clear_screen()
+                    max_id = min_id
+                    break
                 elif command == 'h':
                     print(cstring('<j>', 'cyan') + ' 翻页 \n' +
+                          cstring('<k>', 'cyan') + ' 前一页\n' +
                           cstring('<c 序号 xxx>', 'cyan') + ' 评论\n' +
                           cstring('<r 序号 xxx>', 'cyan') + ' 转发\n' +
                           cstring('<f 序号>', 'cyan') + ' 关注原PO\n' +
