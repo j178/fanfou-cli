@@ -3,6 +3,7 @@
 # Author: John Jiang
 # Date  : 2016/8/29
 
+from base64 import b64encode
 import io
 import json
 import logging
@@ -10,6 +11,7 @@ import math
 import os
 import re
 import sys
+from sys import stdout
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -20,6 +22,49 @@ from requests_oauthlib.oauth1_session import TokenRequestDenied
 
 from . import config as cfg
 from . import cstring, cprint, get_input, open_in_browser, clear_screen
+
+
+def imgcat(data, width='auto', height='auto', preserveAspectRatio=False, inline=True, filename=''):
+    '''
+    The width and height are given as a number followed by a unit, or the word "auto".
+
+        N: N character cells.
+        Npx: N pixels.
+        N%: N percent of the session's width or height.
+        auto: The image's inherent size will be used to determine an appropriate dimension.
+    '''
+
+    buf = bytes()
+    enc = 'utf-8'
+
+    is_tmux = os.environ['TERM'].startswith('screen')
+
+    # OSC
+    buf += b'\033'
+    if is_tmux: buf += b'Ptmux;\033\033'
+    buf += b']'
+
+    buf += b'1337;File='
+
+    if filename:
+        buf += b'name='
+        buf += b64encode(filename.encode(enc))
+
+    buf += b';size=%d' % len(data)
+    buf += b';inline=%d' % int(inline)
+    buf += b';width=%s' % width.encode(enc)
+    buf += b';height=%s' % height.encode(enc)
+    buf += b';preserveAspectRatio=%d' % int(preserveAspectRatio)
+    buf += b':'
+    buf += b64encode(data)
+
+    # ST
+    buf += b'\a'
+    if is_tmux: buf += b'\033\\'
+
+    buf += b'\n'
+
+    return buf
 
 
 class TokenHandler(BaseHTTPRequestHandler):
@@ -169,7 +214,7 @@ class API:
     def photo_upload(self, photo_data, **data):
         """发布带图片状态"""
         # {name : (filename, filedata, content_type, {headers})}
-        file = {'photo': ('photo-from-fanfou-cli.png', photo_data)}
+        file = {'photo': ('photo', photo_data, 'application/octet-stream')}
         return None, data, file
 
     @api('GET', 'users', 'show')
@@ -223,7 +268,7 @@ class API:
 
 # noinspection PyTupleAssignmentBalance
 class Fan:
-    def __init__(self):
+    def __init__(self, access_token=None):
         self._cache = self.load_cache(cfg.CACHE_FILE) or {}
 
         access_token = self._cache.get('access_token')
@@ -254,6 +299,9 @@ class Fan:
             self.save_cache()
 
             self.display_user(me)
+            return True
+        else:
+            cprint('[x] ' + me, 'red')
 
     def update_status(self, status, **params):
         s, r = self.api.statuses_update(status=status, mode='lite', **params)
@@ -262,6 +310,7 @@ class Fan:
             self._cache['my_latest_status'] = r
             self.save_cache()
             print(cstring('[-] 发布成功:', color='green'), self.process_status_text(r['text']))
+            return True
         else:
             cprint('[x] 发布失败: %s' % r, color='red')
 
@@ -275,7 +324,7 @@ class Fan:
             self.save_cache()
             if s:
                 cprint('[-] 撤回成功: %s' % info['text'], color='green')
-                return
+                return True
             error = info
         cprint('[x] 撤回失败: %s' % error, color='red')
 
@@ -289,7 +338,7 @@ class Fan:
         url = user['url']
 
         created_at = arrow.get(user['created_at'], 'ddd MMM DD HH:mm:ss Z YYYY')
-        created_days = (arrow.now(tz='+08:00') - created_at).days
+        created_days = (arrow.now(tz='+08:00') - created_at).days + 1
         followers_count = user['followers_count']
         friends_count = user['friends_count']
         statuses_count = user['statuses_count']
@@ -341,16 +390,20 @@ class Fan:
             photo = cstring('[图]', 'green') if 'photo' in status else ''
             truncated = cstring('$', 'magenta') if status['truncated'] else ''
             time_tag = cstring('(' + created_at + ')', 'white') if cfg.SHOW_TIME_TAG else ''
-            statuses.append(
-                '[{seq}] [{name}{id}] {text} {photo} {truncated} {time_tag}'.format(
-                    seq=i,
-                    name=name,
-                    id=id,
-                    text=text,
-                    photo=photo,
-                    truncated=truncated,
-                    time_tag=time_tag))
-        print('\n'.join(statuses))
+            print('[{seq}] [{name}{id}] {text} {photo} {truncated} {time_tag}'.format(
+                  seq=i,
+                  name=name,
+                  id=id,
+                  text=text,
+                  photo=photo,
+                  truncated=truncated,
+                  time_tag=time_tag))
+            if cfg.SHOW_IMAGE and photo:
+                img = None
+                img_data = requests.get(status['photo']['imageurl'])
+                img = imgcat(img_data.content, cfg.IMAGE_WIDTH)
+                stdout.buffer.write(img)
+                stdout.flush()
 
     def view(self):
         """浏览模式"""
@@ -359,7 +412,7 @@ class Fan:
             prompt = cstring('[-] 输入命令(h显示帮助)>', 'cyan')
             try:
                 key = input(prompt).strip()
-                if key in ('j', 'q', 'h'):
+                if key in ('j', 'k', 'q', 'h'):
                     return key, None, None
                 else:
                     keys = key.split(' ')
@@ -376,12 +429,14 @@ class Fan:
                 return None, None, None
 
         max_id = None
+        min_id = None
         while True:
             s, timeline = self.api.home_timeline(count=10, max_id=max_id, format='html', mode='lite')
             if not s:
                 cprint('[x] ' + timeline, 'red')
                 break
             max_id = timeline[-1]['id']
+            min_id = timeline[0]['id']
             self.display_statuses(timeline)
 
             while True:
@@ -390,8 +445,14 @@ class Fan:
                     if cfg.AUTO_CLEAR:
                         clear_screen()
                     break
+                elif command == 'k':
+                    if cfg.AUTO_CLEAR:
+                        clear_screen()
+                    max_id = min_id
+                    break
                 elif command == 'h':
                     print(cstring('<j>', 'cyan') + ' 翻页 \n' +
+                          cstring('<k>', 'cyan') + ' 前一页\n' +
                           cstring('<c 序号 xxx>', 'cyan') + ' 评论\n' +
                           cstring('<r 序号 xxx>', 'cyan') + ' 转发\n' +
                           cstring('<f 序号>', 'cyan') + ' 关注原PO\n' +
@@ -519,16 +580,17 @@ class Fan:
                 url = image.strip('\'').strip('"')
                 resp = requests.get(url)
                 resp.raise_for_status()
-                if not resp.headers.get('Content-Type', '').startswith('image/'):
+                if not resp.headers.get('Content-Type', '').lower().startswith('image/'):
                     cprint('[x] 提供的URL不是图片URL', 'red')
-                    return
+                    return False
                 data = io.BytesIO(resp.content)
                 s, r = self.api.photo_upload(data, status=status)
             except requests.RequestException as e:
                 cprint('[x] 获取网络图片出错', 'red')
-                return
+                return False
         if s:
             print(cstring('[-] 发布成功: ', 'cyan') + r['text'] + '\n' + cstring('[-] 图片地址: ', 'cyan') + r['photo']['url'])
+            return True
         else:
             cprint('[x] 发布失败: %s' % r, 'red')
 
@@ -539,7 +601,7 @@ class Fan:
                 s = self.api.lock(lock, cookie)
                 if s == 'success':
                     cprint('[-] {}成功'.format('上锁' if lock else '解锁'), 'green')
-                    break
+                    return True
                 elif s == 'cookie_expired':
                     pass
                 else:

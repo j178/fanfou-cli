@@ -21,3 +21,6 @@ API_URL = 'http://api.fanfou.com/{}/{}.json'
 SHOW_ID = False
 SHOW_TIME_TAG = False
 AUTO_CLEAR = False
+# display image in iterm2
+SHOW_IMAGE = True
+IMAGE_WIDTH = '15%'
