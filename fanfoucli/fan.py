@@ -12,12 +12,60 @@ import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse
 
 import arrow
 import requests
-from requests_oauthlib import OAuth1Session
+from requests_oauthlib.oauth1_session import TokenRequestDenied, OAuth1Session
 
-from . import cstring, cprint, get_input, open_in_browser, clear_screen
+from . import clear_screen
+from . import cprint, cstring, get_input, open_in_browser
+
+# Flag set when callback was called
+CALLBACK_REQUEST = None
+
+
+class TokenHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        global CALLBACK_REQUEST
+        if 'callback?oauth_token=' in self.path:
+            CALLBACK_REQUEST = self.path
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write("<h1>授权成功</h1>".encode('utf8'))
+            self.wfile.write('<p>快去刷饭吧~</p>'.encode('utf8'))
+        else:
+            self.send_response(403)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.wfile.write('<h1>参数错误！</h1>'.encode('utf8'))
+
+
+def start_token_server(redirect_uri):
+    global CALLBACK_REQUEST
+    netloc = urlparse(redirect_uri).netloc
+    hostname, port = netloc.split(':')
+    try:
+        port = int(port)
+    except TypeError:
+        port = 80
+    except ValueError:
+        cprint('[x] 不合法的回调地址: %s' % redirect_uri)
+        sys.exit(1)
+    httpd = HTTPServer((hostname, port), TokenHandler)
+    sa = httpd.socket.getsockname()
+    serve_message = cstring("[-] 已在本地启动HTTP服务器，等待饭否君的到来 (http://{host}:{port}/) ...", 'cyan')
+    print(serve_message.format(host=sa[0], port=sa[1]))
+    try:
+        httpd.handle_request()
+    except KeyboardInterrupt:
+        cprint("[-] 服务器退出中...", 'cyan')
+    httpd.server_close()
+
+    if not CALLBACK_REQUEST:
+        cprint('[x] 服务器没有收到请求', 'red')
+        callback = get_input(cstring('[-] 请手动粘贴跳转后的链接>', 'cyan'))
+        CALLBACK_REQUEST = callback
 
 
 def api(method, category, action):
@@ -30,7 +78,7 @@ def api(method, category, action):
                 try:
                     result = self.session.request(method, url, params=params, data=data, files=files, timeout=5)
                 except ValueError as e:
-                    print(e)
+                    cprint(e, 'red')
                     sys.exit(1)
                 except requests.RequestException:
                     failure += 1
@@ -51,13 +99,44 @@ def api(method, category, action):
 
 
 class API:
-    def __init__(self, consumer_key, consumer_secret, api_url, access_token):
-        self.consumer_key = consumer_key
-        self.consumer_secret = consumer_secret
-        self.access_token = access_token
-        self.api_url = api_url
-        self.session = OAuth1Session(consumer_key, consumer_secret)
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.session = OAuth1Session(cfg.consumer_key, cfg.consumer_secret)
+        self.access_token = cfg.user['access_token'] or self.auth()
+        self.api_url = cfg.api_url
         self.session._populate_attributes(self.access_token)
+
+    def auth(self):
+        global CALLBACK_REQUEST
+        try:
+            self.session.fetch_request_token(self.cfg.request_token_url)
+            authorization_url = self.session.authorization_url(self.cfg.authorize_url,
+                                                               callback_uri=self.cfg.callback_uri)
+
+            cprint('[-] 初次使用，此工具需要你的授权才能工作/_\\', 'cyan')
+            if get_input(cstring('[-] 是否自动在浏览器中打开授权链接(y/n)>', 'cyan')) == 'y':
+                open_in_browser(authorization_url)
+            else:
+                cprint('[-] 请在浏览器中打开此链接: ', 'cyan')
+                print(authorization_url)
+
+            if self.cfg.auto_auth:
+                start_token_server(self.cfg.redirect_uri)
+            else:
+                CALLBACK_REQUEST = get_input(cstring('[-] 请手动粘贴跳转后的链接>', 'cyan'))
+
+            if CALLBACK_REQUEST:
+                self.session.parse_authorization_response(self.cfg.redirect_uri + CALLBACK_REQUEST)
+                # requests-oauthlib换取access token时verifier是必须的，而饭否再上一步是不返回verifier的，所以必须手动设置
+                access_token = self.session.fetch_access_token(self.cfg.access_token_url, verifier='123')
+                cprint('[+] 授权完成，可以愉快地发饭啦！', color='green')
+                return access_token
+            else:
+                cprint('[x] 授权失败!', 'red')
+                sys.exit(1)
+        except TokenRequestDenied:
+            cprint('[x] 授权失败，请检查本地时间与网络时间是否同步', color='red')
+            sys.exit(1)
 
     @api('GET', 'account', 'verify_credentials')
     def verify_credentials(self, **params):
@@ -166,21 +245,24 @@ class API:
 # noinspection PyTupleAssignmentBalance
 class Fan:
     def __init__(self, cfg):
+        """
+        :param .config.Config cfg: Config Object
+        """
         self.cfg = cfg
-        self.api = API(cfg.consumer_key,
-                       cfg.consumer_secret,
-                       cfg.API_URL,
-                       cfg.access_token)
-        if self.cfg.current_username == self.cfg.UNDEFINED_USERNAME:
-            s, me = self.api.users_show()
-            if s:
-                self.cfg.current_username = me['id']
+        self.api = API(cfg)
+        self.cfg.user['access_token'] = self.api.access_token
+        s, me = self.api.users_show()
+        if s:
+            self.cfg.user['user'] = me
 
     def me(self):
         s, me = self.api.users_show()
         if s:
             self.display_user(me)
             return True
+            # todo
+            # 显示最近的几条消息
+            # 显示提到我的消息和私信的数量
         else:
             cprint('[x] ' + me, 'red')
 
@@ -317,13 +399,13 @@ class Fan:
                     break
                 elif command == 'h':
                     print(cstring('<j>', 'cyan') + ' 下一页\n' +
-                          cstring('<x>', 'cyan') + ' 刷新\n' +
+                          cstring('<z>', 'cyan') + ' 刷新Timeline\n' +
                           cstring('<c 序号 xxx>', 'cyan') + ' 评论\n' +
                           cstring('<r 序号 xxx>', 'cyan') + ' 转发\n' +
                           cstring('<f 序号>', 'cyan') + ' 关注原PO\n' +
                           cstring('<u 序号>', 'cyan') + ' 取消关注\n' +
                           cstring('<q>', 'cyan') + ' 退出')
-                elif command == 'x':
+                elif command == 'z':
                     if self.cfg.auto_clear:
                         clear_screen()
                     max_id = None
@@ -478,4 +560,34 @@ class Fan:
                     cprint('[x] 失败'.format('上锁' if lock else  '解锁'), 'red')
                     break
 
-            cookie = self.cfg.cookie
+            cprint('[x] Cookie不存在或已失效', 'red')
+            cookie = get_input(cstring('[+] 请重新输入>', 'cyan')).strip('"')
+            self.cfg.user['cookie'] = cookie
+
+    def switch_account(self):
+        text = []
+        for i, account in enumerate(self.cfg.accounts):
+            current = ''
+            if i == self.cfg.current_user:
+                current = cstring('(current)', 'yellow')
+            text.append('[{seq}] {name} @ {id} {current}'.format(
+                seq=i,
+                name=cstring(account['user']['screen_name'], 'green'),
+                id=cstring(account['user']['id'], 'cyan'),
+                current=current
+            ))
+        print('\n'.join(text))
+        num = get_input(cstring('[-] 请选择账号>', 'cyan'))
+        try:
+            num = int(num)
+            if 0 <= num < len(self.cfg.accounts):
+                selected = self.cfg.accounts[num]
+                self.cfg['current_user'] = selected
+            else:
+                raise ValueError
+        except ValueError:
+            cprint('[x] 切换失败', 'red')
+            sys.exit(1)
+
+    def login(self):
+        raise NotImplementedError

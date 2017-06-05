@@ -6,6 +6,7 @@
 import argparse
 import atexit
 import logging
+import os
 import signal
 import sys
 
@@ -27,6 +28,7 @@ def parse_args():
     command_parser.add_argument('--dump', metavar='FILE', nargs='?', const='timeline.json',
                                 help='备份所有状态，保存到 FILE 文件中(JSON格式)')
     command_parser.add_argument('--lock', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
+    command_parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
 
     option_parser = parser.add_argument_group('选项')
     option_parser.add_argument('--verbose', action='store_true', help='打印日志')
@@ -35,11 +37,10 @@ def parse_args():
     option_parser.add_argument('--clear', dest='auto_clear', action='store_true', help='浏览完成后自动清屏')
     option_parser.add_argument('--auto-auth', dest='auto_auth', action='store_true', help='自动验证')
     option_parser.add_argument('--count', dest='timeline_count', type=int, help='时间线显示消息的数量')
-    option_parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
     return parser.parse_known_args()
 
 
-def handler(signal, frame):
+def exit_handler(signal, frame):
     print('\nBye!')
     sys.exit(0)
 
@@ -52,22 +53,14 @@ def read_from_stdin():
         sys.exit(1)
 
 
+@atexit.register
 def clear_screen_handler():
     if cfg.auto_clear:
         clear_screen()
 
 
-def populate_cfg(args):
-    cfg.show_id = args.show_id if args.show_id is not None else cfg.show_id
-    cfg.show_time_tag = args.show_time_tag if args.show_time_tag is not None else cfg.show_time_tag
-    cfg.auto_clear = args.auto_clear if args.auto_clear is not None else cfg.auto_clear
-    cfg.auto_auth = args.auto_auth if args.auto_auth is not None else cfg.auto_auth
-    cfg.timeline_count = args.timeline_count if args.timeline_count is not None else cfg.timeline_count
-
-
 def main():
-    signal.signal(signal.SIGINT, handler)
-    atexit.register(clear_screen_handler)
+    signal.signal(signal.SIGINT, exit_handler)
 
     args, unknown = parse_args()
     level = logging.DEBUG if args.verbose  else logging.INFO
@@ -75,7 +68,16 @@ def main():
                         format='%(asctime)s [%(levelname)s] %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
 
-    populate_cfg(args)
+    cfg.args = args
+
+    if args.version:
+        import fanfoucli
+        print(fanfoucli.__version__)
+        return
+    if len(sys.argv) == 1:
+        open_in_browser('http://fanfou.com')
+        return
+
     fan = Fan(cfg)
 
     if args.dump:
@@ -94,29 +96,22 @@ def main():
         fan.view()
     elif args.random:
         fan.random_view()
-    elif args.version:
-        import fanfoucli
-        print(fanfoucli.__version__)
     else:
         status = ''
-        unknown_str = ''
-        if unknown:
-            unknown_str = ''.join(unknown).strip()
-        if unknown_str == '-':  # fan - read status from stdin
+        # fan -
+        # echo something | fan
+        if (len(sys.argv) == 2 and sys.argv[1] == '-') \
+                or (len(sys.argv) == 1 and hasattr(sys.stdin, 'fileno') and not os.isatty(sys.stdin.fileno())):
             # sys.stdin.read默认使用sys.stdin.encoding解码，而sys.stdin.encoding是根据终端来设置，所以cat xx | fan会导致编码错误
             # 这里改用从底层读取二进制流，然后手动按照utf8解析，如果文件不是utf8格式的话，仍然会出错
             logging.debug('stdin encoding %s', sys.stdin.encoding)
             status = read_from_stdin()
+
         elif args.new:  # fan -n something
             status = ' '.join(args.new)
-        elif not sys.stdin.isatty() and not args.image:  # echo something | fan
-            logging.debug('stdin encoding %s', sys.stdin.encoding)
-            status = read_from_stdin()
         elif unknown:  # fan anything
             status = ' '.join(unknown)
-        elif not args.image:
-            open_in_browser('http://fanfou.com')
-            return
+
         # 发图片
         if args.image:
             fan.upload_photos(status, args.image)

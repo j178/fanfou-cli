@@ -41,15 +41,13 @@ fan 任意文字，不需要引号，可以包含空格，fan命令之后的任�
 初次使用时，此工具需要获取你的授权才能帮你发饭。
 1. 首先执行`fan`的任意命令
 ```sh
-$ fan -h
-请在浏览器中打开此网址: http://fanfou.com/oauth/authorize?callback_uri=http%3A%2F%2Flocalhost/callback&oauth_t
-oken=20a6af62dc1913997c48b7d4f03177ef
+$ fan -m
 ```
-**这个是饭否官方授权第三方应用的页面，请放心打开。**  
+工具会提示"是否自动打开授权页面"，即自动打开浏览器，跳到饭否授权的页面，选择否的话则需要手动将链接粘贴到浏览器中打开。
 
 2. 打开之后会出现如下授权页面：
     ![](_images/1.png)
-    点击同意，即允许第三方应用操作你在饭否上的数据。
+    点击同意。
 
 3. 然后，浏览器会重定向到一个本地链接，访问在本地监听的HTTP服务器，如果看到页面提示 ‘授权成功’，则表示授权已经完成，现在可以愉快地刷饭了！
 
@@ -65,8 +63,7 @@ oken=20a6af62dc1913997c48b7d4f03177ef
     ```javascript
     (/al=(.*?);/i).exec(document.cookie)[1]
     ```
-    **[!!!]获取你的登陆Cookie是非常危险的行为，此工具保证不会上传保存任何你的个人资料和Cookie，但 Use at your own risk!**
-
+    
 ### 依赖
 - Python3
 - requests-oauthlib
