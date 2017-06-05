@@ -3,7 +3,6 @@
 # Author: John Jiang
 # Date  : 2016/8/29
 
-from base64 import b64encode
 import io
 import json
 import logging
@@ -11,7 +10,6 @@ import math
 import os
 import re
 import sys
-from sys import stdout
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
@@ -389,7 +387,6 @@ class Fan:
                 cprint('[x] ' + timeline, 'red')
                 break
             max_id = timeline[-1]['id']
-            min_id = timeline[0]['id']
             self.display_statuses(timeline)
 
             while True:

@@ -32,11 +32,12 @@ def parse_args():
 
     option_parser = parser.add_argument_group('选项')
     option_parser.add_argument('--verbose', action='store_true', help='打印日志')
-    option_parser.add_argument('--id', dest='show_id', action='store_true', help='显示用户ID')
-    option_parser.add_argument('--time', dest='show_time_tag', action='store_true', help='显示时间标签')
+    option_parser.add_argument('--show-id', dest='show_id', action='store_true', help='显示用户ID')
+    option_parser.add_argument('--show-time', dest='show_time_tag', action='store_true', help='显示时间标签')
     option_parser.add_argument('--clear', dest='auto_clear', action='store_true', help='浏览完成后自动清屏')
     option_parser.add_argument('--auto-auth', dest='auto_auth', action='store_true', help='自动验证')
     option_parser.add_argument('--count', dest='timeline_count', type=int, help='时间线显示消息的数量')
+    option_parser.add_argument('--show-image', dest='show_image', action='store_true', help='显示图片')
     return parser.parse_known_args()
 
 

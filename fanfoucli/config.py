@@ -24,7 +24,7 @@ DEFAULT_CONFIG = {
     'auto_clear': False,
     'auto_auth': True,
     'timeline_count': 10,
-    'show_image': True,
+    'show_image': False,
     'image_width': '15%'
 }
 
@@ -40,7 +40,7 @@ class Config:
 
     def __getattr__(self, item):
         # command line arguments take precedence
-        if hasattr(self.args, item):
+        if hasattr(self.args, item) and getattr(self.args, item) is not None:
             return getattr(self.args, item)
         return self.config.get(item)
 

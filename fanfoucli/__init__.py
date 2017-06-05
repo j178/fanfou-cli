@@ -1,9 +1,13 @@
+import os
 import sys
+from base64 import b64encode
 
-__version__ = '0.1.13'
+import requests
+
+__version__ = '0.1.14'
 
 __all__ = [
-    'cstring', 'cprint', 'clear_screen', 'open_in_browser', 'get_input']
+    'cstring', 'cprint', 'clear_screen', 'open_in_browser', 'get_input', 'imgcat']
 
 ATTRIBUTES = {
     'bold': 1,
@@ -84,6 +88,9 @@ def imgcat(imageurl, width='auto', height='auto', preserveAspectRatio=False, inl
         N%: N percent of the session's width or height.
         auto: The image's inherent size will be used to determine an appropriate dimension.
     '''
+    if not sys.platform.startswith('darwin'):
+        return
+
     r = requests.get(imageurl)
     r.raise_for_status()
     data = r.content
@@ -118,5 +125,5 @@ def imgcat(imageurl, width='auto', height='auto', preserveAspectRatio=False, inl
 
     buf += b'\n'
 
-    stdout.buffer.write(buf)
-    stdout.flush()
+    sys.stdout.buffer.write(buf)
+    sys.stdout.flush()
