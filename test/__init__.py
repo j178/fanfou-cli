@@ -1,8 +1,31 @@
+from new.fanfoucli.config import cfg
 from new.fanfoucli.fan import Fan
+import sys
 
-fan = Fan()
-try:
-    print(fan.upload_photos('蛋疼dasfasdf',
-                            'http://photo1.fanfou.com/v1/mss_3d027b52ec5a4d589e68050845611e68/ff/n0/0e/10/y1_288259.gif@596w_1l.gif'))
-except KeyboardInterrupt:
-    print('keyboard interrupt')
+
+def test_auth():
+    f = Fan(cfg)
+    f.view()
+
+
+def test_main():
+    sys.argv[1:] = ['-V']
+    from new.fanfoucli.cli import main
+    main()
+
+
+def test_switch():
+    fan = Fan(cfg)
+    fan.switch_account()
+
+
+def test_login():
+    fan=Fan(cfg)
+    fan.login()
+
+if __name__ == '__main__':
+    test_auth()
+    # test_config()
+    # test_main()
+    # test_switch()
+    # test_login()
