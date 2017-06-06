@@ -1,6 +1,9 @@
 from new.fanfoucli.config import cfg
 from new.fanfoucli.fan import Fan
 import sys
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 def test_auth():
@@ -20,8 +23,9 @@ def test_switch():
 
 
 def test_login():
-    fan=Fan(cfg)
+    fan = Fan(cfg)
     fan.login()
+
 
 if __name__ == '__main__':
     test_auth()

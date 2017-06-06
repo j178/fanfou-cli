@@ -11,21 +11,27 @@ import os
 import re
 import sys
 import time
+import getpass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
 import arrow
 import requests
-from requests_oauthlib.oauth1_session import TokenRequestDenied, OAuth1Session
+
+# patch utils.filter_params
+from oauthlib.oauth1.rfc5849 import utils
+utils.filter_oauth_params = lambda t: t
 
 from . import clear_screen
+from requests_oauthlib.oauth1_session import TokenRequestDenied, OAuth1Session
 from . import cprint, cstring, get_input, open_in_browser, imgcat
+from oauthlib.oauth1 import Client as OAuth1Client
 
 # Flag set when callback was called
 CALLBACK_REQUEST = None
 
 
-class TokenHandler(BaseHTTPRequestHandler):
+class OAuthTokenHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         global CALLBACK_REQUEST
         if 'callback?oauth_token=' in self.path:
@@ -41,7 +47,7 @@ class TokenHandler(BaseHTTPRequestHandler):
             self.wfile.write('<h1>参数错误！</h1>'.encode('utf8'))
 
 
-def start_token_server(redirect_uri):
+def start_oauth_server(redirect_uri):
     global CALLBACK_REQUEST
     netloc = urlparse(redirect_uri).netloc
     hostname, port = netloc.split(':')
@@ -52,7 +58,7 @@ def start_token_server(redirect_uri):
     except ValueError:
         cprint('[x] 不合法的回调地址: %s' % redirect_uri)
         sys.exit(1)
-    httpd = HTTPServer((hostname, port), TokenHandler)
+    httpd = HTTPServer((hostname, port), OAuthTokenHandler)
     sa = httpd.socket.getsockname()
     serve_message = cstring("[-] 已在本地启动HTTP服务器，等待饭否君的到来 (http://{host}:{port}/) ...", 'cyan')
     print(serve_message.format(host=sa[0], port=sa[1]))
@@ -101,12 +107,18 @@ def api(method, category, action):
 class API:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.session = OAuth1Session(cfg.consumer_key, cfg.consumer_secret)
-        self.access_token = cfg.user['access_token'] or self.auth()
         self.api_url = cfg.api_url
+        self.session = OAuth1Session(self.cfg.consumer_key, self.cfg.consumer_secret)
+        self.access_token = self.cfg.user.get('access_token')
+        if not self.access_token:
+            if self.cfg.xauth:
+                self.access_token = self.xauth()
+            else:
+                self.access_token = self.oauth()
         self.session._populate_attributes(self.access_token)
+        self.cfg.user['access_token'] = self.access_token
 
-    def auth(self):
+    def oauth(self):
         global CALLBACK_REQUEST
         try:
             self.session.fetch_request_token(self.cfg.request_token_url)
@@ -121,7 +133,7 @@ class API:
                 print(authorization_url)
 
             if self.cfg.auto_auth:
-                start_token_server(self.cfg.redirect_uri)
+                start_oauth_server(self.cfg.redirect_uri)
             else:
                 CALLBACK_REQUEST = get_input(cstring('[-] 请手动粘贴跳转后的链接>', 'cyan'))
 
@@ -137,6 +149,32 @@ class API:
         except TokenRequestDenied:
             cprint('[x] 授权失败，请检查本地时间与网络时间是否同步', color='red')
             sys.exit(1)
+
+    def xauth(self):
+        # 1. form base request args
+        # 2. generate signature, add to base args
+        # 3. generate Authorization header from base args
+
+        username = get_input(cstring('[-]请输入用户名或邮箱>', 'cyan'))
+        password = getpass.getpass(cstring('[-]请输入密码>', 'cyan'))
+        # 这些实际上并不是url params，但是他们与其他url params一样参与签名，最终成为Authorization header的值
+        args = [
+            ('x_auth_username', username),
+            ('x_auth_password', password),
+            ('x_auth_mode', 'client_auth')
+        ]
+
+        class OAuth1ClientPatch(OAuth1Client):
+            """Patch oauthlib.oauth1.Client for xauth"""
+
+            def get_oauth_params(self, request):
+                params = super().get_oauth_params(request)
+                params.extend(args)
+                return params
+
+        sess = OAuth1Session(self.cfg.consumer_key, self.cfg.consumer_secret, client_class=OAuth1ClientPatch)
+        access_token = sess.fetch_access_token(self.cfg.access_token_url, verifier='123')
+        return access_token
 
     @api('GET', 'account', 'verify_credentials')
     def verify_credentials(self, **params):
@@ -250,7 +288,6 @@ class Fan:
         """
         self.cfg = cfg
         self.api = API(cfg)
-        self.cfg.user['access_token'] = self.api.access_token
         s, me = self.api.users_show()
         if s:
             self.cfg.user['user'] = me

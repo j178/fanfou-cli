@@ -25,7 +25,8 @@ DEFAULT_CONFIG = {
     'auto_auth': True,
     'timeline_count': 10,
     'show_image': False,
-    'image_width': '15%'
+    'image_width': '15%',
+    'xauth': False
 }
 
 
