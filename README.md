@@ -1,5 +1,8 @@
 ## 饭否命令行客户端
 
+[![PyPI version](https://badge.fury.io/py/fanfou-cli.svg)](https://badge.fury.io/py/fanfou-cli)
+[![Python version](https://img.shields.io/badge/python-3.5-blue.svg)](https://img.shields.io/badge/python-3.5-blue.svg)
+[![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](https://img.shields.io/badge/license-MIT-blue.svg)
 ### 安装
 - 通过pip安装
 ```sh

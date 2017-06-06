@@ -376,7 +376,6 @@ class Fan:
             except EOFError:
                 return 'q', None, None
             except ValueError:
-                # cprint('[x] 输入格式有误，退出中...', 'red')
                 return None, None, None
 
         max_id = None
@@ -545,7 +544,7 @@ class Fan:
             cprint('[x] 发布失败: %s' % r, 'red')
 
     def lock(self, lock):
-        cookie = self.cfg.cookie
+        cookie = self.cfg.user['cookie']
         while True:
             if cookie:
                 s = self.api.lock(lock, cookie)

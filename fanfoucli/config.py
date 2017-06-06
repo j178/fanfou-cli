@@ -40,12 +40,13 @@ class Config:
 
     def __getattr__(self, item):
         # command line arguments take precedence
-        if hasattr(self.args, item) and getattr(self.args, item) is not None:
+        if getattr(self.args, item, None) is not None:
             return getattr(self.args, item)
         return self.config.get(item)
 
     @property
     def user(self):
+        # handy method for accessing current user's information
         if self.config['current_user'] is None:
             self.config['accounts'].append({})
             self.config['current_user'] = 0

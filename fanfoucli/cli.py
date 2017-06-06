@@ -25,7 +25,7 @@ def parse_args():
     command_parser.add_argument('-u', '--user', metavar='ID', help='查看他人信息，参数为用户ID')
     command_parser.add_argument('-v', '--view', action='store_true', help='浏览模式')
     command_parser.add_argument('-d', '--random', action='store_true', help='随便看看')
-    command_parser.add_argument('--dump', metavar='FILE', nargs='?', const='timeline.json',
+    command_parser.add_argument('--dump', metavar='FILE', nargs='?', const='fanfou-dumped.json',
                                 help='备份所有状态，保存到 FILE 文件中(JSON格式)')
     command_parser.add_argument('--lock', metavar='0/1', type=int, help='需要我批准才能查看我的消息(1表示上锁，0表示解锁)')
     command_parser.add_argument('-V', '--version', action='store_true', help='显示版本号')
