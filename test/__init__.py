@@ -27,9 +27,14 @@ def test_login():
     fan.login()
 
 
+def test_config():
+    cfg.configure()
+
+
 if __name__ == '__main__':
-    test_auth()
+    # test_auth()
     # test_config()
     # test_main()
-    # test_switch()
+    test_switch()
     # test_login()
+    # test_config()
