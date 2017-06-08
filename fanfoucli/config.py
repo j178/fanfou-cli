@@ -27,7 +27,8 @@ DEFAULT_CONFIG = {
                     'timeline_count': 10,
                     'show_image': False,
                     'image_width': '15%',
-                    'xauth': False
+                    'xauth': False,
+                    'quote_repost': True
                     }
 }
 

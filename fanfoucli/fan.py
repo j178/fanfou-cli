@@ -198,11 +198,11 @@ class API:
         return params, None, None
 
     @api('GET', 'account', 'rate_limit_status')
-    def rate_limit_stats(self, **params):
+    def rate_limit_status(self, **params):
         return params, None, None
 
     @api('GET', 'account', 'notification')
-    def account_notification(self, **params):
+    def notifications(self, **params):
         """返回未读的mentions, direct message 以及关注请求数量"""
         return params, None, None
 
@@ -223,6 +223,10 @@ class API:
     def statuses_destroy(self, **data):
         """删除一条状态"""
         return None, data, None
+
+    @api('GET', 'statuses', 'mentions')
+    def mentions(self, **params):
+        return params, None, None
 
     @api('GET', 'statuses', 'home_timeline')
     def home_timeline(self, **params):
@@ -315,10 +319,20 @@ class Fan:
         s, me = self.api.users_show()
         if s:
             self.display_user(me)
+
+            s, notifications = self.api.notifications()
+            notif_trans = {
+                'direct_message': '私信',
+                'friend_requests': '好友请求',
+                'mentions': '@提到你的'
+            }
+            if s:
+                for name, count in notifications.items():
+                    if count > 0:
+                        print(cstring(notif_trans[name], 'cyan'), str(count), end='   ')
             return True
             # todo
             # 显示最近的几条消息
-            # 显示提到我的消息和私信的数量
         else:
             cprint('[x] ' + me, 'red')
 
@@ -473,8 +487,13 @@ class Fan:
                 elif command == 'r':
                     # 去掉返回消息中的HTML标记，因为上传的时候服务器会根据@,##等标记自动生成
                     status = timeline[number]
-                    text = re.sub(r'<a.*?>(.*?)</a>', r'\1', status['text'])
-                    text = content + '「' + text + '」'
+                    origin = re.sub(r'<a.*?>(.*?)</a>', r'\1', status['text'])
+                    text = '{repost}{repost_style_left}@{name} {origin}{repost_style_right}'.format(
+                        repost=content,
+                        name=status['user']['screen_name'],
+                        origin=origin,
+                        repost_style_left='「' if self.cfg.quote_repost else '',
+                        repost_style_right='」' if self.cfg.quote_repost else '')
                     repost_status_id = status['id']
                     self.update_status(status=text, repost_status_id=repost_status_id, format='html')
                 elif command == 'f':

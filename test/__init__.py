@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def test_auth():
     f = Fan(cfg)
-    f.view()
+    f.me()
 
 
 def test_main():
@@ -32,9 +32,9 @@ def test_config():
 
 
 if __name__ == '__main__':
-    # test_auth()
+    test_auth()
     # test_config()
     # test_main()
-    test_switch()
+    # test_switch()
     # test_login()
     # test_config()
