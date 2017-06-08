@@ -85,7 +85,7 @@ def main():
 
     fan = Fan(cfg)
 
-    if args.confg:
+    if args.config:
         cfg.configure()
     elif args.dump:
         fan.dump(args.dump)
