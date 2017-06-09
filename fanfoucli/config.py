@@ -28,9 +28,27 @@ DEFAULT_CONFIG = {
                     'show_image': False,
                     'image_width': '15%',
                     'xauth': False,
-                    'quote_repost': True
+                    'repost_style_left': '「',
+                    'repost_style_right': '」'
                     }
 }
+
+
+def merge(a, b):
+    "merges b into a"
+    for key in b:
+        if key in a:
+            if isinstance(a[key], dict) and isinstance(b[key], dict):
+                merge(a[key], b[key])
+            elif a[key] == b[key]:
+                pass  # same leaf value
+            else:
+                a[key] = b[key]
+                # else:
+                # a[key] = b[key]
+                # 不向a中添加key
+                # pass
+    return a
 
 
 class Config:
@@ -41,7 +59,7 @@ class Config:
         self.config = DEFAULT_CONFIG
         cache = self.load()
         # update only configs defined in default configs
-        self.config.update((k, cache[k]) for k in self.config.keys() & cache.keys())
+        self.config = merge(DEFAULT_CONFIG, cache)
 
         atexit.register(self.dump)
 

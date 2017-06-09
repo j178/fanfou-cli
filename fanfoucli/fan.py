@@ -492,8 +492,8 @@ class Fan:
                         repost=content,
                         name=status['user']['screen_name'],
                         origin=origin,
-                        repost_style_left='「' if self.cfg.quote_repost else '',
-                        repost_style_right='」' if self.cfg.quote_repost else '')
+                        repost_style_left=self.cfg.repost_style_left,
+                        repost_style_right=self.cfg.repost_style_right)
                     repost_status_id = status['id']
                     self.update_status(status=text, repost_status_id=repost_status_id, format='html')
                 elif command == 'f':

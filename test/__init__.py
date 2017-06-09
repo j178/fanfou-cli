@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 def test_auth():
     f = Fan(cfg)
-    f.me()
+    f.view()
 
 
 def test_main():
